@@ -32,10 +32,21 @@ CONVERSATION_BACKUP_FILE = "conversation_backup.pkl"
 def save_conversation_store():
     """Save conversation store to disk"""
     try:
+        # Create a backup of valid conversations only
+        valid_conversations = {}
+        for conv_id, conv in conversation_store.items():
+            try:
+                # Validate conversation data before saving
+                if hasattr(conv, 'conversation_id') and hasattr(conv, 'user_id'):
+                    valid_conversations[conv_id] = conv
+            except Exception as e:
+                logger.warning(f"Skipping invalid conversation {conv_id}: {e}")
+        
         with open(CONVERSATION_BACKUP_FILE, 'wb') as f:
-            pickle.dump(conversation_store, f)
+            pickle.dump(valid_conversations, f)
+        logger.debug(f"Saved {len(valid_conversations)} conversations to backup")
     except Exception as e:
-        logger.error(f"Failed to save conversation store: {e}")
+        logger.error(f"Failed to save conversation store: {e}", exc_info=True)
 
 def load_conversation_store():
     """Load conversation store from disk"""
@@ -43,10 +54,24 @@ def load_conversation_store():
     try:
         if os.path.exists(CONVERSATION_BACKUP_FILE):
             with open(CONVERSATION_BACKUP_FILE, 'rb') as f:
-                conversation_store = pickle.load(f)
-                logger.info(f"Loaded {len(conversation_store)} conversations from backup")
+                loaded_conversations = pickle.load(f)
+                
+            # Validate loaded conversations
+            valid_conversations = {}
+            for conv_id, conv in loaded_conversations.items():
+                try:
+                    # Ensure conversation has required attributes
+                    if hasattr(conv, 'conversation_id') and hasattr(conv, 'user_id'):
+                        valid_conversations[conv_id] = conv
+                except Exception as e:
+                    logger.warning(f"Skipping invalid loaded conversation {conv_id}: {e}")
+            
+            conversation_store.update(valid_conversations)
+            logger.info(f"Loaded {len(valid_conversations)} valid conversations from backup")
+        else:
+            logger.info("No conversation backup file found, starting with empty store")
     except Exception as e:
-        logger.error(f"Failed to load conversation store: {e}")
+        logger.error(f"Failed to load conversation store: {e}", exc_info=True)
         conversation_store = {}
 
 # Load conversations on startup
@@ -274,8 +299,10 @@ IMPORTANT CONTEXT AWARENESS:
 - When starting fresh conversations, check for existing user data first
 
 TOOL USAGE RULES:
-- When a user requests a resume or mentions they need one, FIRST check if they already have a resume in the conversation. If they do, return the existing resume instead of generating a new one (unless they specifically ask for edits or a new version)
-- Only use the generate_resume tool if no existing resume is found or if the user explicitly requests a new/different resume
+- When a user requests a resume or mentions they need one:
+  * FIRST check the context - if you see "Current Resume Available: Yes", DO NOT use generate_resume tool
+  * Instead, respond with their existing resume and include the resume data in your response
+  * Only use the generate_resume tool if context shows "Current Resume Available: No"
 - When they ask about ATS scores and have an existing resume, INSTANTLY use the calculate_ats_score tool
 - When they need suggestions for improvement (using words like 'suggest', 'improve', 'recommendation', 'tip', 'advice', 'enhance'), ALWAYS use the get_resume_suggestions tool with their user_id (the tool will automatically find missing keywords from recent ATS scores)
 - When they want to edit their resume, PROMPTLY use the edit_resume_section tool with their user_id, edit instructions, and job description
@@ -369,6 +396,9 @@ Be helpful, professional, and provide actionable advice. Format your responses c
             if conversation.current_resume:
                 context += f"Current Resume Available: Yes (Generated in this conversation)\n"
                 context += f"Resume Summary: {json.dumps(conversation.current_resume, indent=2)[:500]}...\n"
+                # Additional context for resume requests
+                if any(word in request.message.lower() for word in ['resume', 'cv', 'generate', 'show', 'create']):
+                    context += f"IMPORTANT: User is asking for resume but already has one. Return the existing resume instead of generating new.\n"
             else:
                 context += f"Current Resume Available: No\n"
             
@@ -664,9 +694,45 @@ Be helpful, professional, and provide actionable advice. Format your responses c
             
             return agent_response
             
+        except LLMError as e:
+            logger.error(f"LLM error in agent chat: {e}")
+            # Return a user-friendly error response
+            conversation.message_history.append({
+                "role": "assistant", 
+                "content": f"❌ I encountered an issue with the AI service: {str(e)}. Please try again in a moment.",
+                "timestamp": datetime.now().isoformat()
+            })
+            conversation_store[conversation.conversation_id] = conversation
+            save_conversation_store()
+            
+            return schemas.AgentChatResponse(
+                response=f"❌ I encountered an issue with the AI service. Please try again in a moment.",
+                conversation_id=conversation.conversation_id,
+                resume_json=conversation.current_resume if conversation.current_resume else None,
+                ats_score=None,
+                suggestions=None
+            )
         except Exception as e:
-            logger.error(f"Error in agent chat: {e}")
-            raise LLMError(f"Agent error: {str(e)}")
+            logger.error(f"Error in agent chat: {e}", exc_info=True)
+            # Return a user-friendly error response
+            try:
+                conversation.message_history.append({
+                    "role": "assistant", 
+                    "content": f"❌ I encountered an unexpected error. Please try again.",
+                    "timestamp": datetime.now().isoformat()
+                })
+                conversation_store[conversation.conversation_id] = conversation
+                save_conversation_store()
+            except:
+                pass  # Don't fail if we can't save to conversation store
+            
+            return schemas.AgentChatResponse(
+                response=f"❌ I encountered an unexpected error. Please try again.",
+                conversation_id=getattr(conversation, 'conversation_id', str(uuid.uuid4())),
+                resume_json=None,
+                ats_score=None,
+                suggestions=None
+            )
     
     async def generate_full_resume_async(self, user_id: str, job_description: str) -> Dict:
         """Generate a complete resume using the full pipeline."""
