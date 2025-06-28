@@ -404,6 +404,7 @@ Be helpful, professional, and provide actionable advice. Format your responses c
                                                 conversation.job_description
                                             )
                                             conversation.last_ats_score = ats_score
+                                            resume_json = conversation.current_resume  # Include current resume in response
                                             
                                             response_text = f"""📊 **ATS Score Analysis Complete!**
 
@@ -459,6 +460,7 @@ Be helpful, professional, and provide actionable advice. Format your responses c
                                     conversation.job_description
                                 )
                                 conversation.last_ats_score = ats_score
+                                resume_json = conversation.current_resume  # Include current resume in response
                                 
                                 response_text = f"""📊 **ATS Score Analysis Complete!**
 
@@ -553,6 +555,7 @@ Be helpful, professional, and provide actionable advice. Format your responses c
                             conversation.job_description
                         )
                         conversation.last_ats_score = ats_score
+                        resume_json = conversation.current_resume  # Include current resume in response
                         
                         response_text = f"""📊 **ATS Score Analysis Complete!**
 
@@ -578,6 +581,7 @@ Be helpful, professional, and provide actionable advice. Format your responses c
                         conversation.last_ats_score.missing_keywords
                     )
                     suggestions = suggestion_response.suggestions
+                    resume_json = conversation.current_resume  # Include current resume in response
                     
                     response_text = "Here are some specific suggestions to improve your resume:\n\n" + "\n".join([f"• {suggestion}" for suggestion in suggestions])
                 except Exception as e:
@@ -594,6 +598,10 @@ Be helpful, professional, and provide actionable advice. Format your responses c
             # Update conversation store
             conversation_store[conversation.conversation_id] = conversation
             save_conversation_store()  # Save after each interaction
+            
+            # Always ensure resume_json is set to the current resume if available
+            if resume_json is None and conversation.current_resume is not None:
+                resume_json = conversation.current_resume
             
             # Prepare response
             agent_response = schemas.AgentChatResponse(
