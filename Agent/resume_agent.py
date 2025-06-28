@@ -110,10 +110,84 @@ def get_resume_suggestions(missing_keywords: List[str]) -> str:
         return f"Error getting suggestions: {str(e)}"
 
 @tool
-def edit_resume_section(current_resume: str, edit_instructions: str, job_description: str) -> str:
-    """Edit a specific section of the resume based on user instructions."""
+def edit_resume_section(edit_instructions: str, job_description: str, user_id: str = None) -> str:
+    """Edit a specific section of the resume based on user instructions. The current resume will be retrieved from the conversation state."""
     try:
-        return f"Resume editing functionality is being processed. Instructions: {edit_instructions[:100]}..."
+        # Find the current conversation for this user
+        current_resume = None
+        user_conversations = [
+            conv for conv in conversation_store.values() 
+            if conv.user_id == user_id and conv.current_resume is not None
+        ]
+        
+        if user_conversations:
+            # Get the most recent conversation with a resume
+            latest_conv = max(user_conversations, key=lambda c: len(c.message_history))
+            current_resume = latest_conv.current_resume
+        
+        if not current_resume:
+            return "Error: No current resume found. Please generate a resume first."
+        
+        # Convert resume to JSON string for processing
+        current_resume_json = json.dumps(current_resume)
+        
+        # Use LLM to intelligently apply the edit instructions
+        edit_prompt = f"""
+You are an expert resume editor. You have a resume in JSON format and specific edit instructions.
+Apply the edit instructions precisely and return ONLY the updated JSON resume.
+
+Current Resume JSON:
+{current_resume_json}
+
+Edit Instructions:
+{edit_instructions}
+
+Job Description (for context):
+{job_description}
+
+CRITICAL RULES:
+1. Return ONLY valid JSON with the EXACT same structure
+2. If asked to remove a "summary" section, remove any field that contains summary/profile/objective content
+3. Look for summary content in common locations like:
+   - resume.basics.summary
+   - resume.summary  
+   - Any field with "summary", "profile", "objective", "about" in the key name
+4. When removing sections, delete the entire field/key completely
+5. If adding content, ensure it fits the existing structure and is relevant to the job description
+6. If modifying content, improve it while following the instructions precisely
+7. Preserve all other content exactly as provided
+
+IMPORTANT: If the resume has nested structure like {{"resume": {{"basics": {{"summary": "..."}}}}}}, 
+make sure to preserve the nesting and only modify the requested content within that structure.
+
+Updated Resume JSON:
+"""
+        
+        # Get LLM instance and process the edit
+        llm = ChatGoogleGenerativeAI(
+            model=config.GEMINI_MODEL,
+            google_api_key=config.GEMINI_API_KEY,
+            temperature=0.3
+        )
+        
+        response = llm.invoke(edit_prompt)
+        edited_resume = response.content.strip()
+        
+        # Clean up the response to extract just the JSON
+        if edited_resume.startswith("```json"):
+            edited_resume = edited_resume[7:]
+        if edited_resume.endswith("```"):
+            edited_resume = edited_resume[:-3]
+        edited_resume = edited_resume.strip()
+        
+        # Validate the edited resume is valid JSON
+        try:
+            json.loads(edited_resume)
+            return edited_resume
+        except json.JSONDecodeError:
+            logger.error(f"LLM returned invalid JSON: {edited_resume[:200]}...")
+            return "Error: Failed to generate valid edited resume JSON"
+            
     except Exception as e:
         logger.error(f"Error editing resume: {e}")
         return f"Error editing resume: {str(e)}"
@@ -181,7 +255,7 @@ IMPORTANT CONTEXT AWARENESS:
 When a user requests a resume or mentions they need one, IMMEDIATELY use the generate_resume tool.
 When they ask about ATS scores and have an existing resume, INSTANTLY use the calculate_ats_score tool.
 When they need suggestions for improvement, QUICKLY use the get_resume_suggestions tool.
-When they want to edit their resume, PROMPTLY use the edit_resume_section tool.
+When they want to edit their resume, PROMPTLY use the edit_resume_section tool with their user_id, edit instructions, and job description.
 
 Always take action immediately - no queueing, no delays, no "I will" statements. Just do it right away.
 Be helpful, professional, and provide actionable advice. Format your responses clearly and explain your recommendations."""),
@@ -206,7 +280,7 @@ Be helpful, professional, and provide actionable advice. Format your responses c
             tools=self.tools,
             verbose=True,
             handle_parsing_errors=True,
-            max_iterations=1,  # Limit to prevent excessive iterations
+            max_iterations=3,  # Increased from 1 to allow for complex operations
             return_intermediate_steps=True  # Get tool call details
         )
     
@@ -405,6 +479,44 @@ Be helpful, professional, and provide actionable advice. Format your responses c
                             logger.error(f"Error calculating ATS score: {e}")
                             response_text = f"❌ I encountered an error while calculating your ATS score: {str(e)}. Please try again."
                             break
+                    
+                    elif hasattr(action, 'tool') and action.tool == 'edit_resume_section':
+                        tool_called = True
+                        try:
+                            # The tool should return the edited resume JSON
+                            edited_resume_json = observation
+                            
+                            # Check if it's valid JSON
+                            if edited_resume_json.startswith("Error:"):
+                                response_text = f"❌ {edited_resume_json}"
+                                break
+                            
+                            try:
+                                # Parse and update the resume
+                                edited_resume = json.loads(edited_resume_json)
+                                conversation.current_resume = edited_resume
+                                resume_json = edited_resume  # Return the edited resume
+                                
+                                response_text = "✅ I've successfully updated your resume based on your instructions! The changes have been applied and your resume is ready."
+                                
+                                # If we have a job description, recalculate ATS score
+                                if conversation.job_description:
+                                    ats_score = await self.calculate_full_ats_score_async(
+                                        edited_resume_json, 
+                                        conversation.job_description
+                                    )
+                                    conversation.last_ats_score = ats_score
+                                    
+                                    response_text += f"\n\n🔄 **Updated ATS Score: {ats_score.final_score:.1%}**"
+                                    
+                                break
+                            except json.JSONDecodeError:
+                                response_text = "❌ Error: The edited resume is not in valid JSON format. Please try again."
+                                break
+                        except Exception as e:
+                            logger.error(f"Error editing resume: {e}")
+                            response_text = f"❌ I encountered an error while editing your resume: {str(e)}. Please try again."
+                            break
             
             # Fall back to old method if no tools were detected in intermediate steps
             if not tool_called:
@@ -497,10 +609,6 @@ Be helpful, professional, and provide actionable advice. Format your responses c
         except Exception as e:
             logger.error(f"Error in agent chat: {e}")
             raise LLMError(f"Agent error: {str(e)}")
-
-# Enhanced tools that can use the HTTP client for full functionality
-class AsyncResumeAgent(ResumeAgent):
-    """Enhanced agent with full async capabilities."""
     
     async def generate_full_resume_async(self, user_id: str, job_description: str) -> Dict:
         """Generate a complete resume using the full pipeline."""
@@ -521,6 +629,7 @@ class AsyncResumeAgent(ResumeAgent):
     async def calculate_full_ats_score_async(self, resume_text: str, job_description: str) -> schemas.ScoreResponse:
         """Calculate full ATS score using the scoring pipeline."""
         try:
+            self.ensure_embedding_model_loaded()
             request = schemas.ScoreRequest(
                 job_description=job_description,
                 resume_text=resume_text
@@ -542,6 +651,19 @@ class AsyncResumeAgent(ResumeAgent):
             logger.error(f"Error in async suggestions: {e}")
             raise
 
-def create_resume_agent(http_client: httpx.AsyncClient) -> AsyncResumeAgent:
+    def ensure_embedding_model_loaded(self):
+        """Ensure the embedding model is loaded for ATS scoring operations."""
+        try:
+            from modules import embedding
+            embedding.init_db()
+            embedding.load_model()
+        except Exception as e:
+            logger.warning(f"Could not load embedding model: {e}")
+# Enhanced tools that can use the HTTP client for full functionality
+class AsyncResumeAgent(ResumeAgent):
+    """Enhanced agent with full async capabilities."""
+    pass
+
+def create_resume_agent(http_client: httpx.AsyncClient) -> ResumeAgent:
     """Factory function to create a resume agent."""
-    return AsyncResumeAgent(http_client)
+    return ResumeAgent(http_client)

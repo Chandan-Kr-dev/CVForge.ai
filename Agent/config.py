@@ -2,7 +2,8 @@
 import os
 from dotenv import load_dotenv
 
-load_dotenv()
+# Force load .env file and override any existing environment variables
+load_dotenv(override=True)
 
 # --- General App Config ---
 APP_NAME = "CVisionary Unified Service"

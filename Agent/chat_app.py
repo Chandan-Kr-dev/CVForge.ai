@@ -8,12 +8,15 @@ from fastapi import FastAPI, Request, Form, HTTPException
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
 import httpx
 import json
 from typing import Optional
 
-# This would be imported in a real application
-# For this demo, we'll create a simple standalone version
+# Import the actual agent components
+import config
+import schemas
+from resume_agent import create_resume_agent
 
 HTML_TEMPLATE = """
 <!DOCTYPE html>
@@ -313,23 +316,51 @@ HTML_TEMPLATE = """
 def create_chat_app():
     """Create a simple FastAPI app with the chat interface."""
     app = FastAPI(title="CVForge.ai Chat Interface")
+    app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+    
+    # Initialize the agent
+    http_client = httpx.AsyncClient(timeout=60.0)
+    agent = create_resume_agent(http_client)
     
     @app.get("/", response_class=HTMLResponse)
     async def chat_interface():
         return HTML_TEMPLATE
     
-    # This would proxy to your main API
     @app.post("/agent/chat")
     async def proxy_chat(request: dict):
-        # In a real app, this would proxy to your main API
-        # For demo purposes, return a mock response
-        return {
-            "response": "This is a demo interface. Please connect to your main CVForge.ai API to use the full agent functionality.",
-            "conversation_id": "demo-conversation",
-            "resume_json": None,
-            "ats_score": None,
-            "suggestions": None
-        }
+        try:
+            # Convert dict to proper schema
+            chat_request = schemas.AgentChatRequest(
+                user_id=request.get("user_id", "web-user"),
+                message=request.get("message", ""),
+                job_description=request.get("job_description"),
+                conversation_id=request.get("conversation_id")
+            )
+            
+            # Use the real agent
+            response = await agent.chat(chat_request)
+            
+            # Convert response to dict for JSON serialization
+            return {
+                "response": response.response,
+                "conversation_id": response.conversation_id,
+                "resume_json": response.resume_json,
+                "ats_score": response.ats_score.dict() if response.ats_score else None,
+                "suggestions": response.suggestions
+            }
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+    
+    @app.on_event("startup")
+    async def startup_event():
+        # Initialize embedding components
+        from modules import embedding
+        embedding.init_db()
+        embedding.load_model()
+    
+    @app.on_event("shutdown")
+    async def shutdown_event():
+        await http_client.aclose()
     
     return app
 
