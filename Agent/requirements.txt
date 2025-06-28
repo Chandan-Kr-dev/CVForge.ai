@@ -1,0 +1,11 @@
+fastapi
+uvicorn[standard]
+httpx
+pydantic
+python-dotenv
+sentence-transformers
+torch
+pymongo
+nltk
+jinja2
+numpy
