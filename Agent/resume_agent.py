@@ -118,7 +118,7 @@ def calculate_ats_score(resume_text: str = "", job_description: str = "") -> str
 
 @tool
 def get_resume_suggestions(user_id: str = None, missing_keywords: List[str] = None) -> str:
-    """Get suggestions for improving a resume based on missing keywords. If missing_keywords is not provided, will try to get them from the latest ATS score in the conversation."""
+    """ALWAYS use this tool when users ask for suggestions, advice, recommendations, tips, or improvements for their profile. This tool generates AI-powered suggestions for improving the user's profile data based on missing keywords from ATS analysis. Never provide suggestions directly - always use this tool."""
     try:
         # If missing_keywords not provided, try to get them from conversation state
         if not missing_keywords and user_id:
@@ -136,20 +136,9 @@ def get_resume_suggestions(user_id: str = None, missing_keywords: List[str] = No
         if not missing_keywords:
             return "I need to calculate your ATS score first to identify missing keywords. Please ask me to 'calculate my ATS score' or provide the missing keywords directly."
         
-        suggestions = []
-        suggestions.append("🎯 **Resume Improvement Suggestions:**\n")
-        
-        for i, keyword in enumerate(missing_keywords[:7], 1):  # Limit to top 7
-            suggestions.append(f"{i}. **Add '{keyword}'** to relevant sections of your resume")
-            suggestions.append(f"   • Look for ways to incorporate '{keyword}' in your experience descriptions")
-            suggestions.append(f"   • Consider adding '{keyword}' to your skills section if applicable\n")
-        
-        suggestions.append("💡 **Pro Tips:**")
-        suggestions.append("• Use these keywords naturally in context, don't just list them")
-        suggestions.append("• Focus on the most relevant keywords for your target role")
-        suggestions.append("• Update your experience descriptions to include these technologies/skills")
-        
-        return "\n".join(suggestions)
+        # Signal that we need AI-generated profile suggestions
+        # The actual generation will be handled by the agent's async methods
+        return f"PROFILE_SUGGESTIONS_REQUESTED|{user_id}|{','.join(missing_keywords[:10])}"
         
     except Exception as e:
         logger.error(f"Error getting suggestions: {e}")
@@ -281,7 +270,7 @@ class ResumeAgent:
 Your capabilities include:
 1. IMMEDIATELY generating complete personalized resumes in JSON format based on user profiles and job descriptions
 2. INSTANTLY calculating ATS scores to show how well resumes match job requirements  
-3. RAPIDLY providing specific suggestions for resume improvements
+3. RAPIDLY providing specific suggestions for improving user profiles to generate better resumes
 4. QUICKLY editing and refining resume sections based on user feedback
 5. CHECKING for existing user data to avoid unnecessary work
 
@@ -304,9 +293,17 @@ TOOL USAGE RULES:
   * Instead, respond with their existing resume and include the resume data in your response
   * Only use the generate_resume tool if context shows "Current Resume Available: No"
 - When they ask about ATS scores and have an existing resume, INSTANTLY use the calculate_ats_score tool
-- When they need suggestions for improvement (using words like 'suggest', 'improve', 'recommendation', 'tip', 'advice', 'enhance'), ALWAYS use the get_resume_suggestions tool with their user_id (the tool will automatically find missing keywords from recent ATS scores)
+- When they need suggestions for improvement (using words like 'suggest', 'improve', 'recommendation', 'tip', 'advice', 'enhance', 'suggestions'), ALWAYS use the get_resume_suggestions tool with their user_id (this tool provides suggestions for improving their profile data, not the resume itself)
 - When they want to edit their resume, PROMPTLY use the edit_resume_section tool with their user_id, edit instructions, and job description
 - NEVER provide suggestions without using the get_resume_suggestions tool
+- NEVER generate suggestions directly in your response - always use the get_resume_suggestions tool
+- Remember: suggestions focus on improving profile data to generate better resumes, not editing existing resumes
+
+RESPONSE FORMATTING RULES:
+- NEVER include raw tool outputs or function returns in your final response
+- When tools return signal patterns like "RESUME_GENERATION_REQUESTED" or "PROFILE_SUGGESTIONS_REQUESTED", do NOT echo these in your response
+- Always provide user-friendly confirmation messages instead of technical output
+- Focus on concise, helpful confirmations that tell the user what was accomplished
 
 Always take action immediately - no queueing, no delays, no "I will" statements. Just do it right away.
 Be helpful, professional, and provide actionable advice. Format your responses clearly and explain your recommendations."""),
@@ -586,7 +583,7 @@ Be helpful, professional, and provide actionable advice. Format your responses c
                     elif hasattr(action, 'tool') and action.tool == 'get_resume_suggestions':
                         tool_called = True
                         try:
-                            # The tool should return suggestions text
+                            # The tool should return suggestions text or a signal for AI generation
                             suggestions_text = observation
                             
                             # Check if it's an error
@@ -594,12 +591,43 @@ Be helpful, professional, and provide actionable advice. Format your responses c
                                 response_text = f"❌ {suggestions_text}"
                                 break
                             
-                            # Set the suggestions and include current resume
-                            suggestions = [suggestions_text]  # Wrap in list for compatibility
-                            resume_json = conversation.current_resume  # Include current resume in response
-                            
-                            response_text = suggestions_text
-                            break
+                            # Check if it's a signal for AI-generated profile suggestions
+                            if "PROFILE_SUGGESTIONS_REQUESTED" in suggestions_text:
+                                try:
+                                    # Parse the signal: PROFILE_SUGGESTIONS_REQUESTED|user_id|keywords
+                                    parts = suggestions_text.split("|")
+                                    if len(parts) >= 3:
+                                        signal_user_id = parts[1]
+                                        keywords_str = parts[2]
+                                        keywords = [k.strip() for k in keywords_str.split(",") if k.strip()]
+                                        
+                                        logger.info(f"Generating AI profile suggestions for user {signal_user_id}")
+                                        ai_suggestions_list = await self.generate_ai_profile_suggestions(
+                                            signal_user_id, 
+                                            keywords,
+                                            conversation.job_description
+                                        )
+                                        
+                                        # Set the suggestions and include current resume
+                                        suggestions = ai_suggestions_list  # This is now a List[str]
+                                        resume_json = conversation.current_resume
+                                        
+                                        # Provide a simple response text without duplicating suggestions
+                                        response_text = f"✅ I've analyzed your profile and generated {len(ai_suggestions_list)} personalized suggestions to help you improve your professional profile based on the missing skills identified in your ATS analysis."
+                                        break
+                                    else:
+                                        response_text = "❌ Error: Could not parse profile suggestion request."
+                                        break
+                                except Exception as e:
+                                    logger.error(f"Error generating AI profile suggestions: {e}")
+                                    response_text = f"❌ I encountered an error while generating personalized profile suggestions: {str(e)}. Please try again."
+                                    break
+                            else:
+                                # Handle legacy suggestions (shouldn't happen with new implementation)
+                                suggestions = [suggestions_text]
+                                resume_json = conversation.current_resume
+                                response_text = suggestions_text
+                                break
                             
                         except Exception as e:
                             logger.error(f"Error getting suggestions: {e}")
@@ -653,7 +681,7 @@ Be helpful, professional, and provide actionable advice. Format your responses c
 
 🎯 **Overall ATS Score: {ats_score.final_score:.1%}**
 
-� **Detailed Breakdown:**
+📈 **Detailed Breakdown:**
 • Semantic Match: {ats_score.semantic_score:.1%} (Content alignment with job requirements)
 • Keyword Match: {ats_score.keyword_score:.1%} (Coverage of important keywords)
 
@@ -682,6 +710,9 @@ Be helpful, professional, and provide actionable advice. Format your responses c
             # Always ensure resume_json is set to the current resume if available
             if resume_json is None and conversation.current_resume is not None:
                 resume_json = conversation.current_resume
+            
+            # Clean up response text - remove any tool output signals that may have leaked through
+            response_text = self.clean_response_text(response_text)
             
             # Prepare response
             agent_response = schemas.AgentChatResponse(
@@ -783,6 +814,110 @@ Be helpful, professional, and provide actionable advice. Format your responses c
             embedding.load_model()
         except Exception as e:
             logger.warning(f"Could not load embedding model: {e}")
+
+    async def generate_ai_profile_suggestions(self, user_id: str, missing_keywords: List[str], job_description: str = None) -> List[str]:
+        """Generate AI-powered profile improvement suggestions using Gemini. Returns a list of suggestions."""
+        try:
+            # Get user's current profile data for context
+            user_profile_context = ""
+            try:
+                from modules import embedding
+                profile_chunks = embedding.retrieve_chunks(
+                    user_id=user_id,
+                    query_text=" ".join(missing_keywords),
+                    top_k=5,
+                    namespace="profile"
+                )
+                
+                if profile_chunks:
+                    user_profile_context = "\n".join([
+                        f"- {chunk['text']}" for chunk in profile_chunks[:3]
+                    ])
+                else:
+                    user_profile_context = "No existing profile data found."
+                    
+            except Exception as e:
+                logger.warning(f"Could not retrieve profile context: {e}")
+                user_profile_context = "Profile data unavailable."
+            
+            # Create the prompt for Gemini to return JSON array
+            prompt = f"""You are an expert career consultant helping a user improve their professional profile. Based on the ATS analysis, the user is missing these key skills/technologies: {', '.join(missing_keywords)}.
+
+User's Current Profile Context:
+{user_profile_context}
+
+{f"Target Job Requirements: {job_description}" if job_description else ""}
+
+Generate specific, actionable suggestions for improving their professional profile to include the missing skills. Focus on:
+1. Skill Development (courses, certifications, training)
+2. Experience Building (hands-on practice, projects)
+3. Profile Content (achievements, experiences to add)
+4. Industry Alignment (positioning for target role)
+
+Return your response as a JSON array of strings, where each string is a complete, actionable suggestion. Include 5-7 suggestions that are personalized and specific.
+
+Example format:
+[
+  "Take a Docker certification course to demonstrate containerization skills and add it to your professional development section",
+  "Build a personal project using Kubernetes and deploy it to showcase orchestration experience in your portfolio"
+]
+
+Focus on PROFILE improvements, not resume edits. Be specific and actionable."""
+
+            # Call Gemini API
+            from llm_client import invoke_gemini
+            response = await invoke_gemini(self.http_client, prompt, enforce_json=True)
+            
+            # Parse the JSON response
+            import json
+            suggestions_list = json.loads(response)
+            
+            # Ensure it's a list of strings
+            if isinstance(suggestions_list, list) and all(isinstance(s, str) for s in suggestions_list):
+                return suggestions_list
+            else:
+                logger.error(f"AI returned invalid format: {response}")
+                return [
+                    "Take courses or get certifications in the missing technologies to strengthen your profile",
+                    "Build personal projects using the missing skills and add them to your experience",
+                    "Update your profile with specific achievements involving these technologies",
+                    "Consider freelance work or volunteering to gain experience with these tools",
+                    "Join professional communities and contribute to open-source projects in these areas"
+                ]
+            
+        except Exception as e:
+            logger.error(f"Error generating AI profile suggestions: {e}")
+            return [
+                f"I encountered an error generating personalized suggestions: {str(e)}",
+                "Please try again or contact support if the issue persists"
+            ]
+
+    def clean_response_text(self, text: str) -> str:
+        """Clean response text to remove any tool output signals that leaked through."""
+        # Remove tool signal patterns
+        patterns_to_remove = [
+            r'RESUME_GENERATION_REQUESTED\|[^|]*\|.*',
+            r'ATS_SCORE_REQUESTED\|[^|]*\|.*',
+            r'PROFILE_SUGGESTIONS_REQUESTED\|[^|]*\|.*',
+            r'EDIT_RESUME_REQUESTED\|[^|]*\|.*',
+            r'USER_DATA_FOUND\|.*',
+            r'USER_DATA_NOT_FOUND'
+        ]
+        
+        import re
+        cleaned_text = text
+        for pattern in patterns_to_remove:
+            cleaned_text = re.sub(pattern, '', cleaned_text, flags=re.IGNORECASE)
+        
+        # Clean up any multiple spaces or newlines left by removals
+        cleaned_text = re.sub(r'\s+', ' ', cleaned_text).strip()
+        
+        # If the response is now empty or just punctuation, provide a default
+        if not cleaned_text or cleaned_text.replace(' ', '').replace('.', '').replace('!', '').replace('?', '') == '':
+            return "✅ I've processed your request successfully!"
+            
+        return cleaned_text
+
 # Enhanced tools that can use the HTTP client for full functionality
 class AsyncResumeAgent(ResumeAgent):
     """Enhanced agent with full async capabilities."""
