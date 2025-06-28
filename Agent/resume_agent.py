@@ -92,18 +92,39 @@ def calculate_ats_score(resume_text: str = "", job_description: str = "") -> str
         return f"Error preparing ATS score calculation: {str(e)}"
 
 @tool
-def get_resume_suggestions(missing_keywords: List[str]) -> str:
-    """Get suggestions for improving a resume based on missing keywords."""
+def get_resume_suggestions(user_id: str = None, missing_keywords: List[str] = None) -> str:
+    """Get suggestions for improving a resume based on missing keywords. If missing_keywords is not provided, will try to get them from the latest ATS score in the conversation."""
     try:
+        # If missing_keywords not provided, try to get them from conversation state
+        if not missing_keywords and user_id:
+            user_conversations = [
+                conv for conv in conversation_store.values() 
+                if conv.user_id == user_id and conv.last_ats_score is not None
+            ]
+            
+            if user_conversations:
+                # Get the most recent conversation with an ATS score
+                latest_conv = max(user_conversations, key=lambda c: len(c.message_history))
+                if latest_conv.last_ats_score and latest_conv.last_ats_score.missing_keywords:
+                    missing_keywords = latest_conv.last_ats_score.missing_keywords
+        
         if not missing_keywords:
-            return "No missing keywords identified. Your resume appears to be well-aligned with the job requirements."
+            return "I need to calculate your ATS score first to identify missing keywords. Please ask me to 'calculate my ATS score' or provide the missing keywords directly."
         
         suggestions = []
-        for keyword in missing_keywords[:5]:  # Limit to top 5
-            suggestions.append(f"- Consider adding '{keyword}' to relevant sections of your resume")
-            suggestions.append(f"- Look for ways to incorporate '{keyword}' in your experience descriptions")
+        suggestions.append("🎯 **Resume Improvement Suggestions:**\n")
         
-        return "Resume Improvement Suggestions:\n" + "\n".join(suggestions)
+        for i, keyword in enumerate(missing_keywords[:7], 1):  # Limit to top 7
+            suggestions.append(f"{i}. **Add '{keyword}'** to relevant sections of your resume")
+            suggestions.append(f"   • Look for ways to incorporate '{keyword}' in your experience descriptions")
+            suggestions.append(f"   • Consider adding '{keyword}' to your skills section if applicable\n")
+        
+        suggestions.append("💡 **Pro Tips:**")
+        suggestions.append("• Use these keywords naturally in context, don't just list them")
+        suggestions.append("• Focus on the most relevant keywords for your target role")
+        suggestions.append("• Update your experience descriptions to include these technologies/skills")
+        
+        return "\n".join(suggestions)
         
     except Exception as e:
         logger.error(f"Error getting suggestions: {e}")
@@ -252,10 +273,13 @@ IMPORTANT CONTEXT AWARENESS:
 - Never ask users to provide resume text if they already have a resume in the conversation
 - When starting fresh conversations, check for existing user data first
 
-When a user requests a resume or mentions they need one, IMMEDIATELY use the generate_resume tool.
-When they ask about ATS scores and have an existing resume, INSTANTLY use the calculate_ats_score tool.
-When they need suggestions for improvement, QUICKLY use the get_resume_suggestions tool.
-When they want to edit their resume, PROMPTLY use the edit_resume_section tool with their user_id, edit instructions, and job description.
+TOOL USAGE RULES:
+- When a user requests a resume or mentions they need one, FIRST check if they already have a resume in the conversation. If they do, return the existing resume instead of generating a new one (unless they specifically ask for edits or a new version)
+- Only use the generate_resume tool if no existing resume is found or if the user explicitly requests a new/different resume
+- When they ask about ATS scores and have an existing resume, INSTANTLY use the calculate_ats_score tool
+- When they need suggestions for improvement (using words like 'suggest', 'improve', 'recommendation', 'tip', 'advice', 'enhance'), ALWAYS use the get_resume_suggestions tool with their user_id (the tool will automatically find missing keywords from recent ATS scores)
+- When they want to edit their resume, PROMPTLY use the edit_resume_section tool with their user_id, edit instructions, and job description
+- NEVER provide suggestions without using the get_resume_suggestions tool
 
 Always take action immediately - no queueing, no delays, no "I will" statements. Just do it right away.
 Be helpful, professional, and provide actionable advice. Format your responses clearly and explain your recommendations."""),
@@ -438,11 +462,20 @@ Be helpful, professional, and provide actionable advice. Format your responses c
                             user_id = action.tool_input.get('user_id')
                             job_desc = action.tool_input.get('job_description')
                             
-                            if user_id and job_desc:
-                                logger.info(f"Generating resume for user {user_id}")
+                            # First check if user already has a resume in conversation
+                            if conversation.current_resume:
+                                logger.info(f"User {user_id} already has a resume, returning existing one")
+                                resume_json = conversation.current_resume
+                                response_text = "✅ Here's your existing resume! It's already been tailored for your target position. If you'd like to make any changes, just let me know what you'd like to edit."
+                                break
+                            elif user_id and job_desc:
+                                logger.info(f"Generating new resume for user {user_id}")
                                 resume_json = await self.generate_full_resume_async(user_id, job_desc)
                                 conversation.current_resume = resume_json
-                                response_text = "✅ I've successfully generated a personalized resume for you! The resume has been tailored specifically for the Lead DevOps Engineer position, highlighting your relevant experience with Python, Kubernetes, Terraform, AWS, and CI/CD practices."
+                                response_text = "✅ I've successfully generated a personalized resume for you! The resume has been tailored specifically for your target position, highlighting your relevant experience and skills."
+                                break
+                            else:
+                                response_text = "❌ Error: Missing user_id or job_description for resume generation."
                                 break
                         except Exception as e:
                             logger.error(f"Error generating resume: {e}")
@@ -519,6 +552,29 @@ Be helpful, professional, and provide actionable advice. Format your responses c
                             logger.error(f"Error editing resume: {e}")
                             response_text = f"❌ I encountered an error while editing your resume: {str(e)}. Please try again."
                             break
+                    
+                    elif hasattr(action, 'tool') and action.tool == 'get_resume_suggestions':
+                        tool_called = True
+                        try:
+                            # The tool should return suggestions text
+                            suggestions_text = observation
+                            
+                            # Check if it's an error
+                            if suggestions_text.startswith("Error:") or suggestions_text.startswith("I need to calculate"):
+                                response_text = f"❌ {suggestions_text}"
+                                break
+                            
+                            # Set the suggestions and include current resume
+                            suggestions = [suggestions_text]  # Wrap in list for compatibility
+                            resume_json = conversation.current_resume  # Include current resume in response
+                            
+                            response_text = suggestions_text
+                            break
+                            
+                        except Exception as e:
+                            logger.error(f"Error getting suggestions: {e}")
+                            response_text = f"❌ I encountered an error while getting suggestions: {str(e)}. Please try again."
+                            break
             
             # Fall back to old method if no tools were detected in intermediate steps
             if not tool_called:
@@ -531,14 +587,20 @@ Be helpful, professional, and provide actionable advice. Format your responses c
                             tool_user_id = parts[1]
                             tool_job_description = parts[2]
                             
-                            # Generate resume immediately
-                            logger.info(f"Generating resume for user {tool_user_id} (fallback method)")
-                            resume_json = await self.generate_full_resume_async(
-                                tool_user_id, 
-                                tool_job_description
-                            )
-                            conversation.current_resume = resume_json
-                            response_text = "✅ I've successfully generated a personalized resume for you! The resume has been tailored specifically for the Lead DevOps Engineer position, highlighting your relevant experience with Python, Kubernetes, Terraform, AWS, and CI/CD practices."
+                            # First check if user already has a resume in conversation
+                            if conversation.current_resume:
+                                logger.info(f"User {tool_user_id} already has a resume, returning existing one (fallback method)")
+                                resume_json = conversation.current_resume
+                                response_text = "✅ Here's your existing resume! It's already been tailored for your target position. If you'd like to make any changes, just let me know what you'd like to edit."
+                            else:
+                                # Generate new resume
+                                logger.info(f"Generating new resume for user {tool_user_id} (fallback method)")
+                                resume_json = await self.generate_full_resume_async(
+                                    tool_user_id, 
+                                    tool_job_description
+                                )
+                                conversation.current_resume = resume_json
+                                response_text = "✅ I've successfully generated a personalized resume for you! The resume has been tailored specifically for your target position, highlighting your relevant experience and skills."
                         else:
                             response_text = "❌ Error: Could not parse resume generation request properly."
                     except Exception as e:
@@ -574,19 +636,7 @@ Be helpful, professional, and provide actionable advice. Format your responses c
                     logger.error(f"Error calculating ATS score: {e}")
                     response_text = f"❌ I encountered an error while calculating your ATS score: {str(e)}. Please try again."
             
-            # Check if user is asking for suggestions and we have missing keywords
-            elif any(word in request.message.lower() for word in ['suggest', 'improve', 'recommendation', 'tip']) and conversation.last_ats_score and conversation.last_ats_score.missing_keywords:
-                try:
-                    suggestion_response = await self.get_full_suggestions_async(
-                        conversation.last_ats_score.missing_keywords
-                    )
-                    suggestions = suggestion_response.suggestions
-                    resume_json = conversation.current_resume  # Include current resume in response
-                    
-                    response_text = "Here are some specific suggestions to improve your resume:\n\n" + "\n".join([f"• {suggestion}" for suggestion in suggestions])
-                except Exception as e:
-                    logger.error(f"Error getting suggestions: {e}")
-                    response_text = f"I encountered an error while generating suggestions: {str(e)}. Please try again."
+            # Let the agent handle everything through tools - removed fallback logic
             
             # Add assistant response to history
             conversation.message_history.append({
