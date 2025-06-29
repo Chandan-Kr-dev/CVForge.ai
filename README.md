@@ -353,43 +353,6 @@ npm run lint  # ESLint checks
 npm run build  # Production build test
 ```
 
-## 🔒 Security Features
-
-- **JWT Authentication**: Secure token-based authentication with role-based access
-- **Input Validation**: Comprehensive validation using Pydantic and Express validators
-- **CORS Configuration**: Properly configured cross-origin resource sharing
-- **Environment Variables**: Sensitive data stored in environment variables
-- **Rate Limiting**: API rate limiting to prevent abuse
-- **SQL Injection Prevention**: MongoDB ODM protection against injection attacks
-
-## 🚀 Deployment
-
-### Production Deployment Checklist
-
-1. **Environment Setup**
-   - [ ] MongoDB Atlas cluster configured
-   - [ ] Google Gemini API key obtained
-   - [ ] Firebase project set up
-   - [ ] Domain and SSL certificates ready
-
-2. **Service Configuration**
-   - [ ] Environment variables set for all services
-   - [ ] Database connections tested
-   - [ ] API endpoints verified
-   - [ ] CORS policies configured
-
-3. **Containerization**
-   - [ ] Docker images built and tested
-   - [ ] Docker Compose configuration verified
-   - [ ] Health checks implemented
-   - [ ] Logging configured
-
-4. **Monitoring & Maintenance**
-   - [ ] Application monitoring set up
-   - [ ] Error tracking implemented
-   - [ ] Backup strategies in place
-   - [ ] Update procedures documented
-
 ### Scaling Considerations
 
 - **Horizontal Scaling**: Each service can be scaled independently
@@ -398,75 +361,10 @@ npm run build  # Production build test
 - **CDN Integration**: Frontend assets can be served via CDN
 - **Caching**: Implement Redis for session and response caching
 
-## 🤝 Contributing
-
-We welcome contributions to CVForge.ai! Please follow these guidelines:
-
-1. **Fork the Repository**: Create a fork of the main repository
-2. **Create Feature Branch**: `git checkout -b feature/your-feature-name`
-3. **Make Changes**: Implement your feature or bug fix
-4. **Write Tests**: Add appropriate tests for your changes
-5. **Submit Pull Request**: Create a detailed pull request with description
-
-### Development Guidelines
-
-- Follow the existing code style and conventions
-- Write clear, descriptive commit messages
-- Update documentation for any API changes
-- Ensure all tests pass before submitting
-- Add comments for complex logic
-
-## 📈 Performance Metrics
-
-### Current Performance Benchmarks
-- **Resume Generation**: ~3-5 seconds average response time
-- **ATS Scoring**: ~2-3 seconds for comprehensive analysis
-- **Profile Indexing**: ~1-2 seconds for standard profiles
-- **Database Queries**: <500ms for most operations
-- **Frontend Load Time**: <2 seconds on average
-
-### Optimization Strategies
-- **Caching**: Implemented at multiple layers (API, database, frontend)
-- **Code Splitting**: Frontend uses dynamic imports for optimal loading
-- **Database Indexing**: Optimized MongoDB indexes for fast queries
-- **Async Processing**: Non-blocking operations where possible
-- **Compression**: Gzip compression for API responses
-
-## 🔮 Roadmap
-
-### Near Term (Q2 2025)
-- [ ] Enhanced ATS scoring with more sophisticated algorithms
-- [ ] Additional resume templates and customization options
-- [ ] Improved social media integration (Twitter, Instagram)
-- [ ] Mobile-responsive design improvements
-- [ ] Advanced analytics and reporting
-
-### Medium Term (Q3-Q4 2025)
-- [ ] Multi-language support for international users
-- [ ] AI-powered interview preparation tools
-- [ ] Integration with major job boards (Indeed, LinkedIn Jobs)
-- [ ] Company branding customization options
-- [ ] Advanced user analytics and insights
-
-### Long Term (2026+)
-- [ ] Machine learning models for job matching
-- [ ] Blockchain-based credential verification
-- [ ] AI-powered career path recommendations
-- [ ] Enterprise-grade features for large organizations
-- [ ] API marketplace for third-party integrations
 
 ## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🆘 Support
-
-For support, bug reports, or feature requests:
-
-- **GitHub Issues**: Use the issue tracker for bug reports and feature requests
-- **Documentation**: Comprehensive docs available in each service directory
-- **Community**: Join our community discussions
-- **Email**: Contact the development team for enterprise inquiries
 
 ## 🙏 Acknowledgments
 
