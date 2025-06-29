@@ -10,7 +10,7 @@ function Footer({ darkMode }) {
           <a href="#" className={darkMode ? "hover:underline" : "hover:underline text-blue-700"}>Privacy Policy</a>
         </div>
         <div className="text-xs text-center">
-          © 2025 CVisionary. All rights reserved.
+          © 2025 CVForge. All rights reserved.
         </div>
       </div>
     </footer>
