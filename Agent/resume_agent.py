@@ -290,7 +290,7 @@ IMPORTANT CONTEXT AWARENESS:
 TOOL USAGE RULES:
 - When a user requests a resume or mentions they need one:
   * FIRST check the context - if you see "Current Resume Available: Yes", DO NOT use generate_resume tool
-  * Instead, respond with their existing resume and include the resume data in your response
+  * Instead, respond that their existing resume is ready and available in the response data
   * Only use the generate_resume tool if context shows "Current Resume Available: No"
 - When they ask about ATS scores and have an existing resume, INSTANTLY use the calculate_ats_score tool
 - When they need suggestions for improvement (using words like 'suggest', 'improve', 'recommendation', 'tip', 'advice', 'enhance', 'suggestions'), ALWAYS use the get_resume_suggestions tool with their user_id (this tool provides suggestions for improving their profile data, not the resume itself)
@@ -884,7 +884,9 @@ Focus on PROFILE improvements, not resume edits. Be specific and actionable."""
             ]
 
     def clean_response_text(self, text: str) -> str:
-        """Clean response text to remove any tool output signals that leaked through."""
+        """Clean response text to remove any tool output signals and JSON blocks that leaked through."""
+        import re
+        
         # Remove tool signal patterns
         patterns_to_remove = [
             r'RESUME_GENERATION_REQUESTED\|[^|]*\|.*',
@@ -895,13 +897,26 @@ Focus on PROFILE improvements, not resume edits. Be specific and actionable."""
             r'USER_DATA_NOT_FOUND'
         ]
         
-        import re
         cleaned_text = text
         for pattern in patterns_to_remove:
             cleaned_text = re.sub(pattern, '', cleaned_text, flags=re.IGNORECASE)
         
+        # Remove JSON code blocks (```json...``` or ```...```)
+        cleaned_text = re.sub(r'```json.*?```', '', cleaned_text, flags=re.DOTALL)
+        cleaned_text = re.sub(r'```.*?```', '', cleaned_text, flags=re.DOTALL)
+        
+        # Remove any standalone JSON objects that might have leaked
+        # Look for patterns like { "resume": { ... } }
+        cleaned_text = re.sub(r'\{[\s\S]*?"resume"[\s\S]*?\}', '', cleaned_text)
+        
         # Clean up any multiple spaces or newlines left by removals
         cleaned_text = re.sub(r'\s+', ' ', cleaned_text).strip()
+        
+        # If the response contains phrases that suggest it's showing raw JSON, clean those up
+        if any(phrase in cleaned_text.lower() for phrase in ['here is the resume', 'here\'s the resume', 'the resume json']):
+            # If it's mostly showing raw data, replace with a friendly message
+            if len(cleaned_text.split()) < 10:  # Very short response after cleaning
+                cleaned_text = "✅ Your resume is ready! You can see the details in the resume data below."
         
         # If the response is now empty or just punctuation, provide a default
         if not cleaned_text or cleaned_text.replace(' ', '').replace('.', '').replace('!', '').replace('?', '') == '':
