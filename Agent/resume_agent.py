@@ -343,7 +343,7 @@ Be helpful, professional, and provide actionable advice. Format your responses c
                                             )
                                             conversation.last_ats_score = ats_score
                                             resume_json = conversation.current_resume
-                                            response_text = f"""\ud83d\udcca **ATS Score Analysis Complete!**\n\n\ud83c\udfaf **Overall ATS Score: {ats_score.final_score:.1%}**\n\n\ud83d\udcc8 **Detailed Breakdown:**\n• Semantic Match: {ats_score.semantic_score:.1%} (Content alignment with job requirements)\n• Keyword Match: {ats_score.keyword_score:.1%} (Coverage of important keywords)\n\n{f"\u26a0\ufe0f **Missing Keywords ({len(ats_score.missing_keywords)}):** {', '.join(ats_score.missing_keywords[:8])}" if ats_score.missing_keywords else "\u2705 **Excellent!** All important keywords are covered."}\n\n{f"\ud83d\udca1 Would you like specific suggestions on how to improve your score?" if ats_score.missing_keywords else "\ud83c\udf89 Your resume is well-optimized for this position!"}"""
+                                            response_text = self.get_safe_ats_score_response(ats_score)
                                             break
                                         else:
                                             response_text = "Found your previous data but missing either resume or job description. Let me generate a new resume for you."
@@ -365,7 +365,7 @@ Be helpful, professional, and provide actionable advice. Format your responses c
                             if conversation.current_resume:
                                 logger.info(f"User {user_id} already has a resume, returning existing one")
                                 resume_json = conversation.current_resume
-                                response_text = "\u2705 Here's your existing resume! It's already been tailored for your target position. If you'd like to make any changes, just let me know what you'd like to edit."
+                                response_text = "Here's your existing resume! It's already been tailored for your target position. If you'd like to make any changes, just let me know what you'd like to edit."
                                 break
                             elif user_id and job_desc:
                                 logger.info(f"Generating new resume for user {user_id}")
@@ -374,11 +374,11 @@ Be helpful, professional, and provide actionable advice. Format your responses c
                                 response_text = "\u2705 I've successfully generated a personalized resume for you! The resume has been tailored specifically for your target position, highlighting your relevant experience and skills."
                                 break
                             else:
-                                response_text = "\u274c Error: Missing user_id or job_description for resume generation."
+                                response_text = "Error: Missing user_id or job_description for resume generation."
                                 break
                         except Exception as e:
                             logger.error(f"Error generating resume: {e}")
-                            response_text = f"\u274c I encountered an error while generating your resume: {str(e)}. Please ensure your profile is properly indexed and try again."
+                            response_text = f"I encountered an error while generating your resume: {str(e)}. Please ensure your profile is properly indexed and try again."
                             break
                     elif hasattr(action, 'tool') and action.tool == 'calculate_ats_score':
                         tool_called = True
@@ -392,7 +392,7 @@ Be helpful, professional, and provide actionable advice. Format your responses c
                                 )
                                 conversation.last_ats_score = ats_score
                                 resume_json = conversation.current_resume
-                                response_text = f"""\ud83d\udcca **ATS Score Analysis Complete!**\n\n\ud83c\udfaf **Overall ATS Score: {ats_score.final_score:.1%}**\n\n\ud83d\udcc8 **Detailed Breakdown:**\n• Semantic Match: {ats_score.semantic_score:.1%} (Content alignment with job requirements)\n• Keyword Match: {ats_score.keyword_score:.1%} (Coverage of important keywords)\n\n{f"\u26a0\ufe0f **Missing Keywords ({len(ats_score.missing_keywords)}):** {', '.join(ats_score.missing_keywords[:8])}" if ats_score.missing_keywords else "\u2705 **Excellent!** All important keywords are covered."}\n\n{f"\ud83d\udca1 Would you like specific suggestions on how to improve your score?" if ats_score.missing_keywords else "\ud83c\udf89 Your resume is well-optimized for this position!"}"""
+                                response_text = self.get_safe_ats_score_response(ats_score)
                                 break
                             else:
                                 response_text = "\u274c I need both a current resume and job description to calculate an ATS score. Please generate a resume first."
@@ -499,7 +499,7 @@ Be helpful, professional, and provide actionable advice. Format your responses c
                         )
                         conversation.last_ats_score = ats_score
                         resume_json = conversation.current_resume
-                        response_text = f"""\ud83d\udcca **ATS Score Analysis Complete!**\n\n\ud83c\udfaf **Overall ATS Score: {ats_score.final_score:.1%}**\n\n\ud83d\udcc8 **Detailed Breakdown:**\n• Semantic Match: {ats_score.semantic_score:.1%} (Content alignment with job requirements)\n• Keyword Match: {ats_score.keyword_score:.1%} (Coverage of important keywords)\n\n{f"\u26a0\ufe0f **Missing Keywords ({len(ats_score.missing_keywords)}):** {', '.join(ats_score.missing_keywords[:8])}" if ats_score.missing_keywords else "\u2705 **Excellent!** All important keywords are covered."}\n\n{f"\ud83d\udca1 Would you like specific suggestions on how to improve your score?" if ats_score.missing_keywords else "\ud83c\udf89 Your resume is well-optimized for this position!"}"""
+                        response_text = self.get_safe_ats_score_response(ats_score)
                     else:
                         response_text = "\u274c I need both a current resume and job description to calculate an ATS score. Please generate a resume first."
                 except Exception as e:
@@ -652,6 +652,36 @@ Focus on PROFILE improvements, not resume edits. Be specific and actionable."""
             ]
     def clean_response_text(self, text: str) -> str:
         import re
+        import unicodedata
+        
+        # First, replace problematic Unicode escape sequences with safe alternatives
+        unicode_replacements = {
+            '\u274c': 'ERROR:',  # ❌ -> ERROR:
+            '\u2705': 'SUCCESS:',  # ✅ -> SUCCESS:
+            '\u26a0\ufe0f': 'WARNING:',  # ⚠️ -> WARNING:
+            '\u26a0': 'WARNING:',  # ⚠ -> WARNING:
+            '\ud83d\udcca': 'CHART:',  # 📊 -> CHART:
+            '\ud83c\udfaf': 'TARGET:',  # 🎯 -> TARGET:
+            '\ud83d\udcc8': 'TREND:',  # 📈 -> TREND:
+            '\ud83c\udf89': 'CELEBRATION:',  # 🎉 -> CELEBRATION:
+            '\ud83d\udca1': 'IDEA:',  # 💡 -> IDEA:
+            '\ud83d\udd04': 'REFRESH:',  # 🔄 -> REFRESH:
+        }
+        
+        # Replace the problematic Unicode characters
+        for unicode_char, replacement in unicode_replacements.items():
+            text = text.replace(unicode_char, replacement)
+        
+        # Normalize and clean Unicode characters to prevent encoding issues
+        try:
+            # Normalize Unicode and remove problematic surrogate pairs
+            text = unicodedata.normalize('NFKC', text)
+            # Remove any remaining problematic Unicode characters
+            text = text.encode('utf-8', errors='ignore').decode('utf-8')
+        except (UnicodeError, UnicodeDecodeError, UnicodeEncodeError):
+            # If there are still Unicode issues, strip problematic characters
+            text = ''.join(char for char in text if ord(char) < 65536)
+        
         patterns_to_remove = [
             r'RESUME_GENERATION_REQUESTED\|[^|]*\|.*',
             r'ATS_SCORE_REQUESTED\|[^|]*\|.*',
@@ -667,12 +697,57 @@ Focus on PROFILE improvements, not resume edits. Be specific and actionable."""
         cleaned_text = re.sub(r'```.*?```', '', cleaned_text, flags=re.DOTALL)
         cleaned_text = re.sub(r'\{[\s\S]*?"resume"[\s\S]*?\}', '', cleaned_text)
         cleaned_text = re.sub(r'\s+', ' ', cleaned_text).strip()
+        
+        # Clean up the prefixes we added
+        cleaned_text = cleaned_text.replace('ERROR: ', '').replace('SUCCESS: ', '').replace('WARNING: ', '')
+        cleaned_text = cleaned_text.replace('CHART: ', '').replace('TARGET: ', '').replace('TREND: ', '')
+        cleaned_text = cleaned_text.replace('CELEBRATION: ', '').replace('IDEA: ', '').replace('REFRESH: ', '')
+        
+        # Final Unicode safety check
+        try:
+            # Test if the cleaned text can be safely encoded
+            cleaned_text.encode('utf-8')
+        except UnicodeEncodeError:
+            # If there are still issues, replace problematic characters
+            cleaned_text = cleaned_text.encode('utf-8', errors='replace').decode('utf-8')
+        
         if any(phrase in cleaned_text.lower() for phrase in ['here is the resume', 'here\'s the resume', 'the resume json']):
             if len(cleaned_text.split()) < 10:
-                cleaned_text = "\u2705 Your resume is ready! You can see the details in the resume data below."
+                cleaned_text = "Your resume is ready! You can see the details in the resume data below."
         if not cleaned_text or cleaned_text.replace(' ', '').replace('.', '').replace('!', '').replace('?', '') == '':
-            return "\u2705 I've processed your request successfully!"
+            return "I've processed your request successfully!"
         return cleaned_text
+    def get_safe_ats_score_response(self, ats_score) -> str:
+        """Generate a safe ATS score response without problematic Unicode characters."""
+        try:
+            # Use safe text representations instead of potentially problematic emoji sequences
+            missing_keywords_text = ""
+            if ats_score.missing_keywords:
+                keywords_preview = ', '.join(ats_score.missing_keywords[:8])
+                missing_keywords_text = f"**Missing Keywords ({len(ats_score.missing_keywords)}):** {keywords_preview}"
+                suggestion_text = "Would you like specific suggestions on how to improve your score?"
+            else:
+                missing_keywords_text = "**Excellent!** All important keywords are covered."
+                suggestion_text = "Your resume is well-optimized for this position!"
+            
+            response = f"""**ATS Score Analysis Complete!**
+
+**Overall ATS Score: {ats_score.final_score:.1%}**
+
+**Detailed Breakdown:**
+• Semantic Match: {ats_score.semantic_score:.1%} (Content alignment with job requirements)
+• Keyword Match: {ats_score.keyword_score:.1%} (Coverage of important keywords)
+
+{missing_keywords_text}
+
+{suggestion_text}"""
+            
+            # Ensure the response is safe for UTF-8 encoding
+            return self.clean_response_text(response)
+        except Exception as e:
+            logger.error(f"Error generating ATS score response: {e}")
+            # Fallback to a simple text response
+            return "ATS Score Analysis Complete! Check the score details in the response data."
 class AsyncResumeAgent(ResumeAgent):
     pass
 def create_resume_agent(http_client: httpx.AsyncClient) -> ResumeAgent:
