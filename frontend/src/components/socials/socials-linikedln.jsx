@@ -250,6 +250,7 @@ const LinkedInUpload = ({ darkMode }) => {
       setFinalParsedData(parsedResume.data);
     }
 
+
     try {
       const response = await axios.post(
         `${import.meta.env.VITE_DEV_URL}Scrapper/linkedin/data`,
@@ -258,6 +259,13 @@ const LinkedInUpload = ({ darkMode }) => {
           fullname: parsedResume.data.personalInfo.name,
           headline: parsedResume.data.personalInfo.title,
           summary: parsedResume.data.summary,
+          personalinfo: {
+            email: parsedResume.data.personalInfo.email,
+            phone: parsedResume.data.personalInfo.phone,
+            location: parsedResume.data.personalInfo.location,
+            linkedin: parsedResume.data.personalInfo.linkedin,
+            portfolio: parsedResume.data.personalInfo.portfolio
+          },
           experience: parsedResume.data.experience,
           skills: parsedResume.data.skills,
           certifications: parsedResume.data.certifications,
@@ -268,10 +276,14 @@ const LinkedInUpload = ({ darkMode }) => {
 
       console.log(response.data);
       setLogs(response.data.message);
+
+      
     } catch (error) {
       console.error(error);
     }
   };
+
+  
 
   // All your UI and styling remains unchanged below
   const bgClass = darkMode ? "bg-[#0a0a23]" : "bg-white";
@@ -319,10 +331,11 @@ const LinkedInUpload = ({ darkMode }) => {
           </button>
         </div>
 
-        <div className="mt-6 text-right">
+        <div className="mt-6 text-right space-x-1">
           <button onClick={handleAnalyze} disabled={!parsedData || loading} className={`${analyzeBtn} font-semibold py-2 px-6 rounded-lg transition-colors duration-300 ${!parsedData || loading ? "opacity-50 cursor-not-allowed" : ""}`}>
             Analyze LinkedIn Scrap
           </button>
+         
         </div>
         <h3 className="text-blue-600 text-center">{Logs}</h3>
 

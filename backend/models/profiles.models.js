@@ -10,6 +10,16 @@ const ProfilesSchema = new mongoose.Schema({
       headline: {
          type: String
       },
+      personalinfo:{
+         type: Object,
+         properties: {
+            email: { type: String },
+            phone: { type: String },
+            location: { type: String },
+            linkedin: { type: String },   
+            portfolio: { type: String  }
+         }
+      },
       summary: {
          type: String
       },
