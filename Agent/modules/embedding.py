@@ -20,6 +20,7 @@ class EmbeddingState:
 state = EmbeddingState()
 
 def load_model():
+    """Load the sentence transformer model if not already loaded."""
     if state.model is None:
         logger.info(f"Loading sentence transformer model: {config.MODEL_NAME}")
         state.model = SentenceTransformer(config.MODEL_NAME)
@@ -36,6 +37,7 @@ def embed_text(text: str) -> np.ndarray:
     return embed_texts([text])[0]
 
 def init_db():
+    """Initialize MongoDB connection if not already connected."""
     if state.mongo_client is None:
         logger.info("Connecting to MongoDB Atlas...")
         state.mongo_client = MongoClient(config.MONGO_URI)

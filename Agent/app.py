@@ -41,14 +41,17 @@ def get_http_client() -> httpx.AsyncClient:
     return app_state["http_client"]
 
 def get_resume_agent():
+    """Get the resume agent instance from application state."""
     return app_state["resume_agent"]
 
 @app.get("/health", response_model=schemas.HealthResponse, tags=["Utilities"])
 async def health_check():
+    """Health check endpoint to verify service status."""
     return {"status": "healthy", "service": config.APP_NAME}
 
 @app.post("/index/profile/{user_id}", response_model=schemas.IndexProfileResponse, tags=["Indexing"])
 async def index_user_profile(user_id: str):
+    """Index a user's profile data for vector search and retrieval."""
     try:
         total_chunks = embedding.index_user_profile(user_id)
         return {"status": "success", "message": f"Profile indexed successfully into {total_chunks} chunks."}
@@ -110,6 +113,7 @@ async def agent_chat(
 
 @app.get("/agent/conversation/{conversation_id}", tags=["Agent"])
 async def get_conversation_history(conversation_id: str):
+    """Retrieve the conversation history for a specific conversation ID."""
     try:
         from resume_agent import conversation_store
         if conversation_id not in conversation_store:
@@ -129,3 +133,7 @@ async def get_conversation_history(conversation_id: str):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"An internal error occurred: {e}")
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
