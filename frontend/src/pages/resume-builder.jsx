@@ -314,9 +314,9 @@ export default function Resume_builder() {
         personal_info: {
           full_name: resume.basics?.name || extractedUserData.name || 'Your Name',
           title: resume.basics?.label || extractedUserData.title || 'Professional Title',
-          email: extractedUserData.email || resume.basics?.email || 'email@example.com',
-          phone: extractedUserData.phone || resume.basics?.phone || '(000) 000-0000',
-          location: extractedUserData.location || resume.basics?.location?.city ? 
+          email: extractedUserData.email  || 'email@example.com',
+          phone: extractedUserData.phone  || '(000) 000-0000',
+          location: extractedUserData.location  ? 
             `${resume.basics.location.city}, ${resume.basics.location.region || ''}` : 
             'City, State',
           summary: resume.basics?.summary || ''
