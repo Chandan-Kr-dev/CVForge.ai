@@ -2,27 +2,19 @@ import logging
 from typing import List
 import httpx
 from jinja2 import Template
-
 from modules import embedding
 import llm_client, schemas
-
 logger = logging.getLogger(__name__)
-
-# Resume generation template
 FULL_RESUME_TEMPLATE = Template("""You are an AI Resume Architect. Your task is to create a complete, professional resume in JSON format based on the user's profile information and tailored to the specific job description provided.
-
 **INSTRUCTIONS:**
 1. Use ONLY the information provided in the Profile Context below
 2. Tailor the resume content to highlight skills and experiences relevant to the job description
 3. If profile information is missing for certain sections, use "Not specified" or omit those sections
 4. Return ONLY valid JSON in the exact format specified below
-
 **Job Description:**
 {{ job_description }}
-
 **Profile Context:**
 {{ profile_context }}
-
 **Required JSON Format:**
 {
   "resume": {
@@ -62,42 +54,29 @@ FULL_RESUME_TEMPLATE = Template("""You are an AI Resume Architect. Your task is 
     }
   }
 }
-
 Generate the resume JSON now:""")
-
 SECTION_REWRITE_TEMPLATE = Template("""You are an AI Resume Editor. Your task is to rewrite a specific section of a resume to better match a job description using the user's profile context.
-
 **INSTRUCTIONS:**
 1. Use ONLY the information provided in the Profile Context below
 2. Enhance the existing section content to better match the job requirements
 3. Keep the same section structure but improve the content
 4. Return ONLY the improved section text, no JSON formatting needed
-
 **Job Description:**
 {{ job_description }}
-
 **Existing Section Content:**
 {{ existing_text }}
-
 **Profile Context:**
 {{ profile_context }}
-
 **Section to Rewrite:** {{ section_type }}
-
 Provide the improved section content:""")
-
-
 def format_context_for_prompt(chunks: List[schemas.ChunkItem]) -> str:
     if not chunks:
         return "No relevant context found."
-    
     return "\n".join([
         f"Source: {chunk.source_type} (Relevance: {chunk.score:.2f})\nContent: {chunk.text.strip()}\n"
         for chunk in chunks
     ])
-
 async def create_full_resume(request: schemas.FullGenerateRequest, client: httpx.AsyncClient) -> str:
-    # 1. Retrieve context directly from the embedding module (NO HTTP CALL)
     retrieved_chunks_data = embedding.retrieve_chunks(
         user_id=request.user_id,
         query_text=request.job_description,
@@ -105,16 +84,11 @@ async def create_full_resume(request: schemas.FullGenerateRequest, client: httpx
         namespace="profile"
     )
     retrieved_chunks = [schemas.ChunkItem(**c) for c in retrieved_chunks_data]
-    
-    # 2. Format context and create prompt
     profile_context = format_context_for_prompt(retrieved_chunks)
     logger.info(f"Retrieved {len(retrieved_chunks)} chunks for user {request.user_id}")
-    logger.info(f"Profile context: {profile_context[:200]}...")  # Log first 200 chars
-    
+    logger.info(f"Profile context: {profile_context[:200]}...")
     prompt = FULL_RESUME_TEMPLATE.render(
         job_description=request.job_description,
         profile_context=profile_context
     )
-
-    # 3. Invoke LLM
     return await llm_client.invoke_gemini(client, prompt, enforce_json=True)
