@@ -121,13 +121,6 @@ HTML_TEMPLATE = """
             padding: 10px;
             margin-top: 10px;
         }
-        .suggestions {
-            background: #fff3cd;
-            border: 1px solid #ffeaa7;
-            border-radius: 6px;
-            padding: 10px;
-            margin-top: 10px;
-        }
         .loading {
             text-align: center;
             padding: 20px;
@@ -185,13 +178,6 @@ HTML_TEMPLATE = """
                         <strong>Keywords:</strong> ${(data.ats_score.keyword_score * 100).toFixed(1)}%
                         ${data.ats_score.missing_keywords && data.ats_score.missing_keywords.length > 0 ? 
                           `<br><strong>Missing Keywords:</strong> ${data.ats_score.missing_keywords.join(', ')}` : ''}
-                    </div>`;
-                }
-                
-                if (data.suggestions && data.suggestions.length > 0) {
-                    messageContent += `<div class="suggestions">
-                        <strong>Suggestions:</strong><br>
-                        ${data.suggestions.map(s => `• ${s}`).join('<br>')}
                     </div>`;
                 }
             }
@@ -345,8 +331,7 @@ def create_chat_app():
                 "response": response.response,
                 "conversation_id": response.conversation_id,
                 "resume_json": response.resume_json,
-                "ats_score": response.ats_score.dict() if response.ats_score else None,
-                "suggestions": response.suggestions
+                "ats_score": response.ats_score.dict() if response.ats_score else None
             }
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))

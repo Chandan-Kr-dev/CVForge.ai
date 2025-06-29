@@ -420,7 +420,6 @@ Be helpful, professional, and provide actionable advice. Format your responses c
             # Check for special tool responses and handle them
             resume_json = None
             ats_score = None
-            suggestions = None
             
             # Check if any tools were called by examining intermediate steps
             tool_called = False
@@ -608,12 +607,9 @@ Be helpful, professional, and provide actionable advice. Format your responses c
                                             conversation.job_description
                                         )
                                         
-                                        # Set the suggestions and include current resume
-                                        suggestions = ai_suggestions_list  # This is now a List[str]
-                                        resume_json = conversation.current_resume
-                                        
-                                        # Provide a simple response text without duplicating suggestions
-                                        response_text = f"✅ I've analyzed your profile and generated {len(ai_suggestions_list)} personalized suggestions to help you improve your professional profile based on the missing skills identified in your ATS analysis."
+                                        # Include suggestions directly in the response text instead of separate field
+                                        suggestions_text = "\n".join([f"• {suggestion}" for suggestion in ai_suggestions_list])
+                                        response_text = f"✅ I've analyzed your profile and generated personalized suggestions to help you improve your professional profile:\n\n{suggestions_text}"
                                         break
                                     else:
                                         response_text = "❌ Error: Could not parse profile suggestion request."
@@ -624,8 +620,6 @@ Be helpful, professional, and provide actionable advice. Format your responses c
                                     break
                             else:
                                 # Handle legacy suggestions (shouldn't happen with new implementation)
-                                suggestions = [suggestions_text]
-                                resume_json = conversation.current_resume
                                 response_text = suggestions_text
                                 break
                             
@@ -719,8 +713,7 @@ Be helpful, professional, and provide actionable advice. Format your responses c
                 response=response_text,
                 conversation_id=conversation.conversation_id,
                 resume_json=resume_json,
-                ats_score=ats_score,
-                suggestions=suggestions
+                ats_score=ats_score
             )
             
             return agent_response
@@ -740,8 +733,7 @@ Be helpful, professional, and provide actionable advice. Format your responses c
                 response=f"❌ I encountered an issue with the AI service. Please try again in a moment.",
                 conversation_id=conversation.conversation_id,
                 resume_json=conversation.current_resume if conversation.current_resume else None,
-                ats_score=None,
-                suggestions=None
+                ats_score=None
             )
         except Exception as e:
             logger.error(f"Error in agent chat: {e}", exc_info=True)
@@ -761,8 +753,7 @@ Be helpful, professional, and provide actionable advice. Format your responses c
                 response=f"❌ I encountered an unexpected error. Please try again.",
                 conversation_id=getattr(conversation, 'conversation_id', str(uuid.uuid4())),
                 resume_json=None,
-                ats_score=None,
-                suggestions=None
+                ats_score=None
             )
     
     async def generate_full_resume_async(self, user_id: str, job_description: str) -> Dict:

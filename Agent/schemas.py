@@ -94,7 +94,6 @@ class AgentChatResponse(BaseModel):
     response: str
     resume_json: Optional[Dict] = None
     ats_score: Optional[ScoreResponse] = None
-    suggestions: Optional[List[str]] = None
     conversation_id: str
 
 class ConversationState(BaseModel):
