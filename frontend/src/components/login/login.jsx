@@ -207,7 +207,7 @@ const Login = () => {
 
         <div className="flex-1 p-10">
           <h2 className="text-3xl font-bold mb-2">Welcome Back</h2>
-          <p className="text-gray-400 mb-6">Login to your CVisionary account</p>
+          <p className="text-gray-400 mb-6">Login to your CVForge account</p>
 
           <div className="mb-4">
             <label className="block mb-1 text-sm font-medium">Select Role</label>
