@@ -226,7 +226,58 @@ CVForge.ai Agent/
 
 ### Running the Application
 
-#### Start the Main API Server
+#### Option 1: Docker (Recommended)
+
+**Quick Start with Docker Compose:**
+```bash
+# Clone and navigate to the project
+git clone <repository-url>
+cd CVForge.ai/Agent
+
+# Copy environment file and configure
+cp .env.example .env
+# Edit .env with your MongoDB URI and Gemini API key
+
+# Start all services (development mode with local MongoDB)
+./deploy.sh
+
+# Or for Windows
+deploy.bat
+
+# Or manually with docker-compose
+docker-compose up -d --profile development
+```
+
+**Production Deployment:**
+```bash
+# Use production configuration
+./deploy.sh --environment production
+
+# Or manually
+docker-compose -f docker-compose.prod.yml up -d
+```
+
+**Docker Commands:**
+```bash
+# Build only (don't start services)
+./deploy.sh --build-only
+
+# Start without rebuilding
+./deploy.sh --skip-build
+
+# View logs
+docker-compose logs -f cvforge-agent
+
+# Stop all services
+docker-compose down
+
+# Stop and remove volumes (development)
+docker-compose down -v
+```
+
+#### Option 2: Local Development
+
+**Start the Main API Server**
 ```bash
 # Development
 uvicorn app:app --reload --port 8000
@@ -235,13 +286,260 @@ uvicorn app:app --reload --port 8000
 uvicorn app:app --host 0.0.0.0 --port 8000
 ```
 
-#### Start the Chat Interface (Optional)
+**Start the Chat Interface (Optional)**
 ```bash
 python chat_app.py
 # Accessible at http://localhost:8001
 ```
 
-## 📋 API Documentation
+## � Docker Deployment
+
+### Container Architecture
+
+```mermaid
+graph TB
+    subgraph "Docker Environment"
+        subgraph "Load Balancer"
+            NGINX[Nginx<br/>Port 80/443]
+        end
+        
+        subgraph "Application Layer"
+            API1[CVForge Agent 1<br/>Port 8000]
+            API2[CVForge Agent 2<br/>Port 8000]
+            CHAT[Chat Interface<br/>Port 8001]
+        end
+        
+        subgraph "Data Layer"
+            MONGO_LOCAL[MongoDB<br/>Port 27017<br/>Development Only]
+            MONGO_ATLAS[MongoDB Atlas<br/>Production]
+            CACHE[Model Cache<br/>Volume]
+            DATA[Conversation Data<br/>Volume]
+        end
+        
+        subgraph "External Services"
+            GEMINI_EXT[Google Gemini API]
+            HF_EXT[HuggingFace Models]
+        end
+    end
+    
+    NGINX --> API1
+    NGINX --> API2
+    NGINX --> CHAT
+    
+    API1 --> MONGO_LOCAL
+    API1 --> MONGO_ATLAS
+    API2 --> MONGO_LOCAL
+    API2 --> MONGO_ATLAS
+    CHAT --> API1
+    
+    API1 --> CACHE
+    API2 --> CACHE
+    API1 --> DATA
+    API2 --> DATA
+    
+    API1 --> GEMINI_EXT
+    API2 --> GEMINI_EXT
+    API1 --> HF_EXT
+    API2 --> HF_EXT
+    
+    classDef container fill:#e3f2fd
+    classDef database fill:#f3e5f5
+    classDef external fill:#fff3e0
+    classDef volume fill:#e8f5e8
+    
+    class NGINX,API1,API2,CHAT container
+    class MONGO_LOCAL,MONGO_ATLAS database
+    class GEMINI_EXT,HF_EXT external
+    class CACHE,DATA volume
+```
+
+### Docker Files Overview
+
+| File | Purpose | Environment |
+|------|---------|-------------|
+| `Dockerfile` | Standard development build | Development |
+| `Dockerfile.prod` | Multi-stage optimized build | Production |
+| `docker-compose.yml` | Development with local MongoDB | Development |
+| `docker-compose.prod.yml` | Production with external MongoDB | Production |
+| `deploy.sh` / `deploy.bat` | Automated deployment scripts | Both |
+
+### Quick Start with Docker
+
+1. **Clone and Setup**
+   ```bash
+   git clone <repository-url>
+   cd CVForge.ai/Agent
+   cp .env.example .env
+   # Edit .env with your configuration
+   ```
+
+2. **Development Deployment**
+   ```bash
+   # Linux/Mac
+   chmod +x deploy.sh
+   ./deploy.sh
+   
+   # Windows
+   deploy.bat
+   ```
+
+3. **Production Deployment**
+   ```bash
+   ./deploy.sh --environment production
+   ```
+
+### Docker Configuration
+
+#### Environment Variables (.env)
+```bash
+# MongoDB Configuration
+MONGO_URI=mongodb+srv://user:pass@cluster.mongodb.net/
+MONGO_DB_NAME=cvforge_production
+
+# Development MongoDB (Docker)
+MONGO_ROOT_USER=admin
+MONGO_ROOT_PASSWORD=password123
+
+# Google AI
+GEMINI_API_KEY=your_api_key_here
+GEMINI_MODEL=gemini-1.5-flash
+
+# Application Settings
+GENERATION_TEMPERATURE=0.7
+GENERATION_MAX_TOKENS=2048
+```
+
+#### Docker Compose Profiles
+
+**Development Profile:**
+- Includes local MongoDB container
+- Development-friendly settings
+- Hot reload capabilities
+- Port mapping for debugging
+
+**Production Profile:**
+- Uses external MongoDB Atlas
+- Multi-replica deployment
+- Resource limits and health checks
+- Nginx load balancer
+
+### Container Details
+
+#### CVForge Agent Container
+- **Base Image**: `python:3.12-slim`
+- **Port**: 8000
+- **Health Check**: `/health` endpoint
+- **Volumes**: Model cache, conversation data
+- **Resources**: 1-2GB RAM, 0.5-1 CPU
+
+#### Chat Interface Container
+- **Base Image**: Same as agent
+- **Port**: 8001
+- **Dependencies**: CVForge Agent API
+- **Resources**: 512MB RAM, 0.5 CPU
+
+#### MongoDB Container (Development)
+- **Image**: `mongo:7.0`
+- **Port**: 27017
+- **Initialization**: Automatic collection setup
+- **Volume**: Persistent data storage
+
+### Docker Commands Reference
+
+#### Build and Deploy
+```bash
+# Build images
+docker-compose build
+
+# Start services (development)
+docker-compose up -d --profile development
+
+# Start services (production)
+docker-compose -f docker-compose.prod.yml up -d
+
+# Scale API instances
+docker-compose -f docker-compose.prod.yml up -d --scale cvforge-agent=3
+```
+
+#### Management
+```bash
+# View logs
+docker-compose logs -f [service-name]
+
+# Execute shell in container
+docker-compose exec cvforge-agent bash
+
+# Restart specific service
+docker-compose restart cvforge-agent
+
+# Update and restart
+docker-compose pull && docker-compose up -d
+```
+
+#### Monitoring
+```bash
+# Container status
+docker-compose ps
+
+# Resource usage
+docker stats
+
+# Service health
+curl http://localhost:8000/health
+```
+
+### Production Considerations
+
+#### Security
+- Non-root user in containers
+- Secret management via environment variables
+- Network isolation
+- Health checks and restart policies
+
+#### Performance
+- Multi-stage builds for smaller images
+- Resource limits and reservations
+- Model caching between containers
+- Load balancing with Nginx
+
+#### Scaling
+- Horizontal scaling support
+- Shared model cache volume
+- External database requirement
+- Stateless application design
+
+#### Monitoring
+- Health check endpoints
+- Application logs
+- Container metrics
+- Database monitoring
+
+### Troubleshooting
+
+#### Common Issues
+```bash
+# Container won't start
+docker-compose logs cvforge-agent
+
+# Database connection failed
+docker-compose exec cvforge-agent python -c "import pymongo; print('MongoDB OK')"
+
+# Model loading issues
+docker-compose exec cvforge-agent python -c "from sentence_transformers import SentenceTransformer; print('Models OK')"
+
+# API not responding
+curl -v http://localhost:8000/health
+```
+
+#### Reset Everything
+```bash
+# Stop and remove everything
+docker-compose down -v --remove-orphans
+
+# Rebuild from scratch
+docker-compose build --no-cache
+docker-compose up -d --profile development
+```
 
 ### Core Endpoints
 
