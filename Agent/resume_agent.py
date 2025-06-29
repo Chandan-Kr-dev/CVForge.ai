@@ -20,6 +20,7 @@ import pickle
 import os
 CONVERSATION_BACKUP_FILE = "conversation_backup.pkl"
 def save_conversation_store():
+    """Save the current conversation store to a backup file."""
     try:
         valid_conversations = {}
         for conv_id, conv in conversation_store.items():
@@ -34,6 +35,7 @@ def save_conversation_store():
     except Exception as e:
         logger.error(f"Failed to save conversation store: {e}", exc_info=True)
 def load_conversation_store():
+    """Load conversation store from backup file if it exists."""
     global conversation_store
     try:
         if os.path.exists(CONVERSATION_BACKUP_FILE):
@@ -68,6 +70,7 @@ class ResumeEditInput(BaseModel):
     job_description: str = Field(description="The job description to keep in mind for edits")
 @tool
 def generate_resume(user_id: str, job_description: str) -> str:
+    """Generate a personalized resume for a user based on their profile and a job description."""
     try:
         return f"RESUME_GENERATION_REQUESTED|{user_id}|{job_description}"
     except Exception as e:
@@ -75,6 +78,7 @@ def generate_resume(user_id: str, job_description: str) -> str:
         return f"Error preparing resume generation: {str(e)}"
 @tool
 def calculate_ats_score(resume_text: str = "", job_description: str = "") -> str:
+    """Calculate the ATS (Applicant Tracking System) compatibility score for a resume against a job description."""
     try:
         return f"ATS_SCORE_REQUESTED|{len(resume_text)}|{len(job_description)}"
     except Exception as e:
@@ -82,6 +86,7 @@ def calculate_ats_score(resume_text: str = "", job_description: str = "") -> str
         return f"Error preparing ATS score calculation: {str(e)}"
 @tool
 def get_resume_suggestions(user_id: str = None, missing_keywords: List[str] = None) -> str:
+    """Get personalized suggestions for improving a user's profile based on missing keywords from ATS analysis."""
     try:
         if not missing_keywords and user_id:
             user_conversations = [
@@ -100,6 +105,7 @@ def get_resume_suggestions(user_id: str = None, missing_keywords: List[str] = No
         return f"Error getting suggestions: {str(e)}"
 @tool
 def edit_resume_section(edit_instructions: str, job_description: str, user_id: str = None) -> str:
+    """Edit a specific section of an existing resume based on user instructions and job requirements."""
     try:
         current_resume = None
         user_conversations = [
@@ -165,6 +171,7 @@ Updated Resume JSON:
         return f"Error editing resume: {str(e)}"
 @tool
 def check_user_data(user_id: str) -> str:
+    """Check if user data exists in the conversation store and return the status of their resume, job description, and ATS score."""
     try:
         user_conversations = [
             conv for conv in conversation_store.values() 
@@ -579,6 +586,7 @@ Be helpful, professional, and provide actionable advice. Format your responses c
             logger.error(f"Error in async suggestions: {e}")
             raise
     def ensure_embedding_model_loaded(self):
+        """Ensure the embedding model is loaded before use."""
         try:
             from modules import embedding
             embedding.init_db()
