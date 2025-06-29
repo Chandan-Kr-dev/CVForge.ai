@@ -6,49 +6,23 @@ const SocialsConnectSchema = new mongoose.Schema({
       type: String,
       required: true
    },
-   githubScrapedData: {
-      userName: {
-         type: String
-      },
-      avatar: {
-         type: String
-      },
-      bio: {
-         type: String
-      },
-      followers: {
-         type: String
-      },
-      following: {
-         type: String
-      },
-      repos: {
-         type: String
-      }
-   },
-   LinkedinData: {
-      FullName: {
+   fullName: {
          type: String
       },
       headline: {
          type: String
       },
-      Summary: {
-         type: String
+      personalinfo:{
+         type: Object,
+         properties: {
+            email: { type: String },
+            phone: { type: String },
+            location: { type: String },
+            linkedin: { type: String },   
+            portfolio: { type: String  }
+         }
       },
-      Experience: {
-         type: Array
-      },
-      Education: {
-         type: Array
-      },
-      Skills: {
-         type: Array
-      },
-      Certifications: {
-         type: Array
-      }
-   }
+      
 }, { timestamps: true });
 
 const SocialsConnect = mongoose.model("Socials_Connect", SocialsConnectSchema);

@@ -88,13 +88,14 @@ const createProfile = async (req, res) => {
       headline,
       summary,
       experience,
-      
+      personalinfo,
       skills,
       certifications,
       education,
       source,
       projects
     } = req.body;
+    console.log(req.body);
 
     // Validate required fields
     if (!fullname && !headline) {
@@ -111,6 +112,13 @@ const createProfile = async (req, res) => {
       fullName: fullname || '',
       headline: headline || '',
       summary: summary || '',
+      personalinfo: {
+        email: personalinfo.email || '',
+        phone: personalinfo.phone || '',
+        location: personalinfo.location || '',
+        linkedin: personalinfo.linkedin || '',
+        portfolio: personalinfo.portfolio || ''
+      },
       experience: experience || [],
       projects: projects || [],
       education: education || [],
@@ -130,11 +138,11 @@ const createProfile = async (req, res) => {
         personalInfo: {
           name: savedProfile.FullName,
           title: savedProfile.headline,
-          email: '',
-          phone: '',
-          location: '',
-          linkedin: '',
-          portfolio: ''
+          email: savedProfile.personalinfo.email,
+          phone: savedProfile.personalinfo.phone,
+          location: savedProfile.personalinfo.location,
+          linkedin: savedProfile.personalinfo.linkedin,
+          portfolio: savedProfile.personalinfo.portfolio
         },
         summary: savedProfile.Summary,
         experience: savedProfile.Experience,
@@ -199,11 +207,59 @@ const addprojectstoLinkedin=async (req, res) => {
   }
 }
 
+const addPeronalinfo=()=>{
+  const {userId , email , phone, location, linkedin, portfolio ,fullName ,headline } = req.body;
+  try {
+    const socails=SocialsConnect.create({
+      userId,
+      fullName,
+      headline,
+      personalinfo: {
+        email,
+        phone,
+        location,
+        linkedin,
+        portfolio
+      }
+    })
+    res.json({
+      success: true,
+      message: "Personal info added successfully",
+      data: socails
+    })
+  } catch (error) {
+    console.error('Error adding personal info:', error);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: error.message
+    });
+  }
+}
+
+const getsocialsdata=async (req, res) => {
+  try {
+    const profilesData = await profiles.findOne({user_id: req.body.userId});
+    res.json({
+      success: true,
+      message: "Profiles fetched successfully",
+      data: profilesData
+    });
+  } catch (error) {
+    console.error('Error fetching profiles:', error);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: error.message
+    });
+  }
+}
+
 
 const getProfileData=async(req,res)=>{
   const {userId}=req.body
   try {
-    const profile=await profiles.findOne({userId});
+    const profile=await profiles.findOne({user_id:userId});
     res.json({
       success:true,
       message:"profile fetched",
@@ -215,4 +271,4 @@ const getProfileData=async(req,res)=>{
   }
 }
 
-export { githubScrapper, githubRepo, githubdata, createProfile,getProfileData ,addprojectstoLinkedin};
+export { githubScrapper, githubRepo,getsocialsdata , addPeronalinfo, githubdata, createProfile,getProfileData ,addprojectstoLinkedin};
