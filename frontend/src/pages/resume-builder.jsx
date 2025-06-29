@@ -11,6 +11,7 @@ import { useEffect } from "react";
 import Footer from "@/components/dashboard/footer";
 import axios from "axios";
 import { jwtDecode } from "jwt-decode";
+// import html2pdf from 'html2pdf.js';
 
 export default function Resume_builder() {
   const [currentStep, setCurrentStep] = useState("templates"); // templates, jobDescription, builder
@@ -204,10 +205,281 @@ export default function Resume_builder() {
     return "text-red-600";
   };
 
-  const handleDownloadPDF = () => {
-    // Trigger PDF download from LivePreview component
-    const event = new CustomEvent('downloadResume');
-    window.dispatchEvent(event);
+  const handleDownloadPDF = async () => {
+    let timeoutId;
+    try {
+      console.log('Starting PDF download process...');
+      setIsGenerating(true);
+      
+      // Set a timeout to prevent infinite hanging
+      timeoutId = setTimeout(() => {
+        setIsGenerating(false);
+        alert('PDF generation is taking too long. Please try again.');
+      }, 30000); // 30 seconds timeout
+      
+      // Get the resume preview element - try multiple selectors
+      let resumeElement = document.querySelector('[data-resume-content]');
+      if (!resumeElement) {
+        resumeElement = document.getElementById('resume-preview');
+      }
+      if (!resumeElement) {
+        resumeElement = document.querySelector('.resume-content');
+      }
+      
+      console.log('Resume element found:', resumeElement);
+      console.log('Resume element innerHTML length:', resumeElement?.innerHTML?.length || 0);
+      
+      if (!resumeElement) {
+        console.error('Resume element not found');
+        alert('Resume content not found. Please generate your resume first.');
+        clearTimeout(timeoutId);
+        setIsGenerating(false);
+        return;
+      }
+      
+      if (!resumeElement.innerHTML || resumeElement.innerHTML.trim().length === 0) {
+        console.error('Resume element is empty');
+        alert('Resume content is empty. Please generate your resume first.');
+        clearTimeout(timeoutId);
+        setIsGenerating(false);
+        return;
+      }
+      
+      console.log('Resume element HTML preview:', resumeElement.innerHTML.substring(0, 200) + '...');
+      
+      // Wait a bit to ensure all content is rendered
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Create a simple wrapper with the content
+      const wrapper = document.createElement('div');
+      wrapper.style.cssText = `
+        width: 210mm;
+        min-height: 297mm;
+        padding: 20mm;
+        margin: 0;
+        background: white;
+        color: black;
+        font-family: Arial, sans-serif;
+        font-size: 12px;
+        line-height: 1.4;
+        position: absolute;
+        left: -9999px;
+        top: 0;
+      `;
+      
+      // Clone the content
+      const content = resumeElement.cloneNode(true);
+      
+      // Apply simple, safe styling to the content
+      content.style.cssText = `
+        width: 100%;
+        background: white;
+        color: black;
+        font-family: Arial, sans-serif;
+        padding: 0;
+        margin: 0;
+      `;
+      
+      // Remove any problematic elements that might interfere
+      const problematicElements = content.querySelectorAll('script, style, button, input, select, textarea');
+      problematicElements.forEach(el => el.remove());
+      
+      // Recursively clean up all child elements with simpler approach
+      const cleanElement = (element) => {
+        // Apply basic, safe styling
+        element.style.cssText = `
+          color: black !important;
+          background-color: transparent !important;
+          font-family: Arial, sans-serif !important;
+        `;
+        
+        // Apply specific styling based on tag
+        const tagName = element.tagName?.toLowerCase();
+        switch (tagName) {
+          case 'h1':
+            element.style.fontSize = '24px';
+            element.style.fontWeight = 'bold';
+            element.style.marginBottom = '16px';
+            break;
+          case 'h2':
+            element.style.fontSize = '20px';
+            element.style.fontWeight = 'bold';
+            element.style.marginBottom = '12px';
+            break;
+          case 'h3':
+            element.style.fontSize = '16px';
+            element.style.fontWeight = 'bold';
+            element.style.marginBottom = '8px';
+            break;
+          case 'p':
+            element.style.fontSize = '12px';
+            element.style.marginBottom = '8px';
+            element.style.lineHeight = '1.4';
+            break;
+          case 'div':
+            element.style.marginBottom = '4px';
+            break;
+          case 'span':
+            element.style.fontSize = '12px';
+            break;
+          case 'ul':
+            element.style.marginLeft = '20px';
+            element.style.marginBottom = '8px';
+            break;
+          case 'li':
+            element.style.fontSize = '12px';
+            element.style.marginBottom = '4px';
+            break;
+        }
+        
+        // Clean child elements
+        for (const child of element.children) {
+          cleanElement(child);
+        }
+      };
+      
+      // Clean all elements in the cloned content
+      cleanElement(content);
+      
+      wrapper.appendChild(content);
+      document.body.appendChild(wrapper);
+      
+      console.log('Wrapper created and added to DOM');
+      console.log('Wrapper innerHTML length:', wrapper.innerHTML.length);
+      
+      // Generate filename
+      const userName = userData?.name || userData?.profile?.name || 'Resume';
+      const timestamp = new Date().toISOString().split('T')[0];
+      const filename = `${userName.replace(/\s+/g, '_')}_Resume_${timestamp}.pdf`;
+      
+      console.log('Generating PDF with filename:', filename);
+      
+      // Simple PDF options
+      const options = {
+        margin: 10,
+        filename: filename,
+        image: { 
+          type: 'jpeg', 
+          quality: 0.8 
+        },
+        html2canvas: { 
+          scale: 1,
+          useCORS: true,
+          backgroundColor: '#ffffff',
+          logging: true,
+          width: 794,
+          height: 1123,
+          scrollX: 0,
+          scrollY: 0
+        },
+        jsPDF: { 
+          unit: 'mm', 
+          format: 'a4', 
+          orientation: 'portrait' 
+        }
+      };
+      
+      // Generate PDF with timeout
+      const pdfPromise = html2pdf()
+        .from(wrapper)
+        .set(options)
+        .save();
+      
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('PDF generation timeout')), 25000)
+      );
+      
+      await Promise.race([pdfPromise, timeoutPromise]);
+      
+      console.log('PDF generated successfully');
+      
+      // Clean up
+      document.body.removeChild(wrapper);
+      clearTimeout(timeoutId);
+      
+      alert('Resume downloaded successfully!');
+      
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      console.error('Error details:', error.message, error.stack);
+      
+      if (timeoutId) clearTimeout(timeoutId);
+      
+      // Try a fallback approach with sample content to test if PDF generation works
+      try {
+        console.log('Attempting fallback PDF generation with sample content...');
+        
+        // Create a test element with visible content
+        const testContent = `
+          <div style="padding: 20px; font-family: Arial, sans-serif; color: black; background: white;">
+            <h1 style="color: black; font-size: 24px; margin-bottom: 16px; font-weight: bold;">Test Resume</h1>
+            <h2 style="color: black; font-size: 18px; margin-bottom: 12px; font-weight: bold;">John Doe</h2>
+            <p style="color: black; font-size: 14px; margin-bottom: 8px;">Software Engineer</p>
+            <p style="color: black; font-size: 12px; margin-bottom: 8px;">Email: john.doe@example.com</p>
+            <p style="color: black; font-size: 12px; margin-bottom: 8px;">Phone: (555) 123-4567</p>
+            
+            <h3 style="color: black; font-size: 16px; margin: 16px 0 8px 0; font-weight: bold;">Professional Summary</h3>
+            <p style="color: black; font-size: 12px; margin-bottom: 16px; line-height: 1.4;">
+              Experienced software engineer with 5+ years in full-stack development. 
+              Skilled in React, Node.js, and database design.
+            </p>
+            
+            <h3 style="color: black; font-size: 16px; margin: 16px 0 8px 0; font-weight: bold;">Experience</h3>
+            <div style="margin-bottom: 16px;">
+              <h4 style="color: black; font-size: 14px; font-weight: bold; margin-bottom: 4px;">Senior Software Engineer</h4>
+              <p style="color: black; font-size: 12px; margin-bottom: 4px;">Tech Company Inc. | 2020 - Present</p>
+              <p style="color: black; font-size: 12px; line-height: 1.4;">
+                • Led development of React applications<br/>
+                • Implemented REST APIs with Node.js<br/>
+                • Collaborated with cross-functional teams
+              </p>
+            </div>
+            
+            <h3 style="color: black; font-size: 16px; margin: 16px 0 8px 0; font-weight: bold;">Skills</h3>
+            <p style="color: black; font-size: 12px;">JavaScript, React, Node.js, Python, SQL, Git</p>
+          </div>
+        `;
+        
+        const fallbackElement = document.createElement('div');
+        fallbackElement.innerHTML = testContent;
+        fallbackElement.style.cssText = `
+          position: absolute;
+          left: -9999px;
+          top: 0;
+          width: 210mm;
+          background: white;
+          padding: 20mm;
+        `;
+        
+        document.body.appendChild(fallbackElement);
+        
+        await html2pdf()
+          .from(fallbackElement)
+          .set({
+            margin: 10,
+            filename: 'Test_Resume.pdf',
+            image: { type: 'jpeg', quality: 0.8 },
+            html2canvas: { 
+              scale: 1, 
+              backgroundColor: '#ffffff',
+              logging: true
+            },
+            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+          })
+          .save();
+        
+        document.body.removeChild(fallbackElement);
+        
+        alert('Test PDF generated successfully! The issue might be with your resume content. Please try regenerating your resume.');
+        
+      } catch (fallbackError) {
+        console.error('Fallback PDF generation also failed:', fallbackError);
+        alert('Unable to generate PDF. This might be a browser or library issue. Please try a different browser or contact support.');
+      }
+    } finally {
+      if (timeoutId) clearTimeout(timeoutId);
+      setIsGenerating(false);
+    }
   };
 
   const formatResumeForTemplate = (resumeData, template, userData = null) => {

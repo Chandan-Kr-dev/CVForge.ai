@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import html2pdf from "html2pdf.js";
+// import html2pdf from "html2pdf.js";
 
 // Debug function to log the resume data structure
 const debugResumeData = (data, template) => {
@@ -79,6 +79,7 @@ export default function LivePreview({ previewContent, template, darkMode = false
           {previewContent ? (
             <div
               id="resume-preview"
+              data-resume-content
               dangerouslySetInnerHTML={{ __html: previewContent }}
               className="w-full h-full p-6"
             />

@@ -8,6 +8,8 @@ import {
   MessageSquare,
   Upload,
   File,
+  Download,
+  Target,
 } from "lucide-react";
 import axios from "axios";
 import { jwtDecode } from "jwt-decode";
@@ -971,6 +973,54 @@ Let's start building your perfect resume! What would you like me to help you wit
     setShowATSModal(true);
   };
 
+  // Function to download resume as PDF - MOVED TO MAIN RESUME BUILDER COMPONENT
+  /*
+  const downloadResumeAsPDF = async () => {
+    // For now, we'll ask the AI to generate a PDF version
+    // In a real implementation, you might use jsPDF or html2pdf
+    const pdfMessage = "Please generate a PDF version of my resume for download.";
+    
+    setMessages((m) => [...m, { from: "user", text: pdfMessage }]);
+    
+    // Auto-send the PDF request
+    try {
+      setLoading(true);
+      setTyping(true);
+      
+      const { data } = await axios.post(
+        `${import.meta.env.VITE_AGENT_URL}agent/chat`,
+        {
+          message: pdfMessage,
+          user_id: decoded.userId,
+          job_description: jobDesc,
+        }
+      );
+
+      setMessages((m) => [
+        ...m,
+        {
+          from: "agent",
+          type: "working",
+          text: data.response || data.agent_response || "PDF generation request processed!",
+        },
+      ]);
+      
+      // Store the latest AI response
+      setLatestAIResponse(data);
+      
+    } catch (err) {
+      console.error(err);
+      setMessages((m) => [
+        ...m,
+        { from: "agent", text: "❌ PDF generation failed. Please try again." },
+      ]);
+    } finally {
+      setLoading(false);
+      setTyping(false);
+    }
+  };
+  */
+
   const token = window.localStorage.getItem("tokenCV");
   const decoded = jwtDecode(token);
   console.log("Decoded JWT:", decoded);
@@ -1128,7 +1178,7 @@ Let's start building your perfect resume! What would you like me to help you wit
 
   return (
     <div
-      className={`h-full flex flex-col ${
+      className={`h-full mt-10 flex flex-col ${
         darkMode ? "bg-gray-800" : "bg-gray-50"
       } rounded-lg overflow-hidden`}
     >
@@ -1138,21 +1188,46 @@ Let's start building your perfect resume! What would you like me to help you wit
           darkMode ? "border-gray-700 bg-gray-900" : "border-gray-200 bg-white"
         } rounded-t-lg`}
       >
-        <h3
-          className={`font-semibold flex items-center ${
-            darkMode ? "text-white" : "text-gray-900"
-          }`}
-        >
-          <MessageSquare className="mr-2 text-violet-600" size={20} />
-          AI Resume Assistant
-        </h3>
-        <p
-          className={`text-sm mt-1 ${
-            darkMode ? "text-gray-400" : "text-gray-500"
-          }`}
-        >
-          Chat with our AI to improve your resume
-        </p>
+        <div className="flex justify-between items-start">
+          <div>
+            <h3
+              className={`font-semibold flex items-center ${
+                darkMode ? "text-white" : "text-gray-900"
+              }`}
+            >
+              <MessageSquare className="mr-2 text-violet-600" size={20} />
+              AI Resume Assistant
+            </h3>
+            <p
+              className={`text-sm mt-1 ${
+                darkMode ? "text-gray-400" : "text-gray-500"
+              }`}
+            >
+              Chat with our AI to improve your resume
+            </p>
+          </div>
+          
+          {/* Action Buttons */}
+          <div className="flex space-x-2">
+            <button
+              onClick={showATSScore}
+              className="flex items-center space-x-1 px-3 py-2 text-xs bg-gradient-to-r from-violet-600 to-purple-600 text-white rounded-lg hover:from-violet-700 hover:to-purple-700 transition-all duration-300 shadow-sm hover:shadow-md"
+              title="Check ATS Score"
+            >
+              <Target size={14} />
+              <span className="font-medium hidden sm:inline">ATS Score</span>
+            </button>
+            
+            {/* <button
+              onClick={downloadResumeAsPDF}
+              className="flex items-center space-x-1 px-3 py-2 text-xs bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:from-green-700 hover:to-emerald-700 transition-all duration-300 shadow-sm hover:shadow-md"
+              title="Download PDF"
+            >
+              <Download size={14} />
+              <span className="font-medium hidden sm:inline">PDF</span>
+            </button> */}
+          </div>
+        </div>
       </div>
 
       {/* Messages Area */}
@@ -1278,15 +1353,6 @@ Let's start building your perfect resume! What would you like me to help you wit
             <SendHorizonal className="w-5 h-5" />
           </button>
         </div>
-        <button
-            onClick={showATSScore}
-            className="flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-violet-600 to-purple-600 text-white rounded-lg hover:from-violet-700 hover:to-purple-700 transition-all duration-300 shadow-lg hover:shadow-xl"
-            
-          >
-            
-            {/* <Star size={20} /> */}
-            <span className="font-medium">Check ATS Score</span>
-          </button>
       </div>
 
       {/* ATS Score Modal */}
