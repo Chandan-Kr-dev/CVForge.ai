@@ -150,3 +150,7 @@ async def get_conversation_history(conversation_id: str):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"An internal error occurred: {e}")
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)

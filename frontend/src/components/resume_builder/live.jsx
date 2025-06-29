@@ -1,5 +1,4 @@
 import { useEffect } from "react";
-// import html2pdf from "html2pdf.js";
 
 // Debug function to log the resume data structure
 const debugResumeData = (data, template) => {
@@ -28,15 +27,9 @@ export default function LivePreview({ previewContent, template, darkMode = false
   }, [previewContent]);
 
   const handleDownload = () => {
-    const element = document.getElementById("resume-preview");
-    const opt = {
-      margin: 0.5,
-      filename: "CVForge_Resume.pdf",
-      image: { type: "jpeg", quality: 0.98 },
-      html2canvas: { scale: 2 },
-      jsPDF: { unit: "in", format: "letter", orientation: "portrait" },
-    };
-    html2pdf().set(opt).from(element).save();
+    // PDF download is handled by the parent component
+    console.log('PDF download from preview - handled by parent component');
+    alert('Please use the main Download PDF button in the resume builder.');
   };
 
   return (
