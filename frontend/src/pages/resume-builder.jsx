@@ -15,7 +15,7 @@ import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 
 export default function Resume_builder() {
-  const [currentStep, setCurrentStep] = useState("templates"); // templates, jobDescription, builder
+  const [currentStep, setCurrentStep] = useState("templates");
   const [selectedTemplate, setSelectedTemplate] = useState(null);
   const [livePreview, setLivePreview] = useState("");
   const [darkMode, setDarkMode] = useState(getInitialDarkMode());
@@ -28,7 +28,6 @@ export default function Resume_builder() {
   const [showATSScore, setShowATSScore] = useState(false);
   const [atsScore, setATSScore] = useState(null);
 
-  // Resume templates data with enhanced descriptions
   const resumeTemplates = [
     {
       id: 1,
@@ -75,7 +74,6 @@ export default function Resume_builder() {
       setUserName(parsedUser.name || "");
     }
     
-    // Fetch user data from LinkedIn profile
     const fetchUserData = async () => {
       try {
         const token = window.localStorage.getItem("tokenCV");
@@ -114,7 +112,6 @@ export default function Resume_builder() {
     fetchUserData();
   }, []);
 
-  // Debug function to validate user data extraction
   const validateUserData = (userData) => {
     if (!userData) return "No user data available";
     
@@ -135,7 +132,6 @@ export default function Resume_builder() {
     return extracted;
   };
 
-  // Test extraction when userData changes
   useEffect(() => {
     if (userData) {
       console.log("=== USER DATA VALIDATION ===");
@@ -157,7 +153,6 @@ export default function Resume_builder() {
     setShowJobDescModal(false);
     setIsGenerating(true);
     
-    // Initialize AI agent with job description and user data
     await initializeResume();
   };
 
@@ -177,10 +172,8 @@ export default function Resume_builder() {
       
       console.log("Resume initialization response:", response.data);
       
-      // Store the complete response data
       setResumeData(response.data);
       
-      // Format for the selected template with user data
       const formattedResume = formatResumeForTemplate(response.data, selectedTemplate, userData);
       setLivePreview(formattedResume);
       
@@ -194,8 +187,7 @@ export default function Resume_builder() {
   };
 
   const calculateATSScore = () => {
-    // Simulate ATS score calculation based on resume data
-    const score = Math.floor(Math.random() * 30) + 70; // Random score between 70-100
+    const score = Math.floor(Math.random() * 30) + 70;
     setATSScore(score);
     setShowATSScore(true);
   };
@@ -213,15 +205,12 @@ export default function Resume_builder() {
     }
 
     try {
-      // Generate filename
       const userName = userData?.name || userData?.profile?.name || 'Resume';
       const timestamp = new Date().toISOString().split('T')[0];
       const filename = `${userName.replace(/\s+/g, '_')}_Resume_${timestamp}.pdf`;
       
-      // Create a new window for PDF generation
       const printWindow = window.open('', '_blank');
       
-      // Write the complete HTML document with styles
       printWindow.document.write(`
         <!DOCTYPE html>
         <html>
@@ -298,7 +287,6 @@ export default function Resume_builder() {
     
     console.log("Formatting resume for template:", template.name, resumeData);
     
-    // Map the AI response structure to our expected structure
     const mapResumeData = (aiResponse) => {
       if (!aiResponse || !aiResponse.resume_json || !aiResponse.resume_json.resume) {
         console.warn("Invalid AI response structure:", aiResponse);
@@ -307,7 +295,6 @@ export default function Resume_builder() {
       
       const resume = aiResponse.resume_json.resume;
       
-      // Extract user data from LinkedIn profile structure
       const extractUserData = (userData) => {
         if (!userData) return {};
         const profile = userData.profile || userData;
@@ -349,36 +336,30 @@ export default function Resume_builder() {
       </div>`;
     }
     
-    // Use the proper template formatters
     return formatResumeByTemplate(mappedData, template, userData);
   };
 
-  // Template-specific formatting functions
   const formatResumeByTemplate = (data, template, userData = null) => {
     switch (template.id) {
-      case 1: // Professional
+      case 1:
         return formatProfessionalTemplate(data, userData);
-      case 2: // Modern Sidebar
+      case 2:
         return formatModernSidebarTemplate(data, userData);
-      case 3: // Creative
+      case 3:
         return formatCreativeTemplate(data, userData);
-      case 4: // Minimalist
+      case 4:
         return formatMinimalistTemplate(data, userData);
       default:
         return formatProfessionalTemplate(data, userData);
     }
   };
 
-  // Professional template formatter
   const formatProfessionalTemplate = (data, userData = null) => {
-    // Use userData from database if available, otherwise fall back to resume data
     console.log("formatProfessionalTemplate received userData:", userData);
     
-    // Extract data from LinkedIn profile structure
     const extractUserData = (userData) => {
       if (!userData) return {};
       
-      // Handle different possible data structures from LinkedIn scraper
       const profile = userData.profile || userData;
       
       return {
@@ -467,9 +448,7 @@ export default function Resume_builder() {
     `;
   };
 
-  // Modern Sidebar template formatter
   const formatModernSidebarTemplate = (data, userData = null) => {
-    // Extract data from LinkedIn profile structure
     const extractUserData = (userData) => {
       if (!userData) return {};
       const profile = userData.profile || userData;
@@ -494,7 +473,6 @@ export default function Resume_builder() {
 
     return `
       <div class="w-full h-full flex overflow-y-auto">
-        <!-- Sidebar -->
         <div class="w-1/3 bg-gradient-to-b from-blue-600 to-cyan-600 text-white p-6">
           <div class="mb-6">
             <h1 class="text-2xl font-bold mb-2">${personalInfo.full_name}</h1>
@@ -530,7 +508,6 @@ export default function Resume_builder() {
           </div>
         </div>
 
-        <!-- Main Content -->
         <div class="w-2/3 p-6 bg-white">
           <div class="mb-6">
             <h2 class="text-xl font-bold text-blue-600 mb-3">PROFESSIONAL SUMMARY</h2>
@@ -562,9 +539,7 @@ export default function Resume_builder() {
     `;
   };
 
-  // Creative template formatter
   const formatCreativeTemplate = (data, userData = null) => {
-    // Extract data from LinkedIn profile structure
     const extractUserData = (userData) => {
       if (!userData) return {};
       const profile = userData.profile || userData;
@@ -649,9 +624,7 @@ export default function Resume_builder() {
     `;
   };
 
-  // Minimalist template formatter
   const formatMinimalistTemplate = (data, userData = null) => {
-    // Extract data from LinkedIn profile structure
     const extractUserData = (userData) => {
       if (!userData) return {};
       const profile = userData.profile || userData;
@@ -733,7 +706,6 @@ export default function Resume_builder() {
     setDarkModePreference(value);
   };
 
-  // Theme colors matching dashboard/landing
   const bgClass = darkMode ? "bg-[#101124]" : "bg-[#f7f8fa]";
   const textClass = darkMode ? "text-white" : "text-[#181A2A]";
   const headingClass = darkMode ? "text-white" : "text-[#181A2A]";
@@ -752,7 +724,6 @@ export default function Resume_builder() {
       />
       
       <AnimatePresence mode="wait">
-        {/* Template Selection Step */}
         {currentStep === "templates" && (
           <motion.div
             className="flex mt-14 flex-col items-center justify-center w-full min-h-[calc(100vh-4rem)] px-4 py-8"
@@ -798,7 +769,6 @@ export default function Resume_builder() {
                   <div className={`h-64 bg-gradient-to-br ${template.color} flex items-center justify-center relative overflow-hidden`}>
                     <div className="absolute inset-0 bg-black bg-opacity-10"></div>
                     <div className="text-6xl relative z-10">{template.icon}</div>
-                    {/* Mock resume preview lines */}
                     <div className="absolute inset-4 bg-white bg-opacity-95 rounded-lg p-4 flex flex-col justify-center space-y-2">
                       <div className="h-3 bg-gray-400 rounded w-3/4"></div>
                       <div className="h-2 bg-gray-300 rounded w-1/2"></div>
@@ -840,7 +810,6 @@ export default function Resume_builder() {
           </motion.div>
         )}
 
-        {/* Resume Builder Step */}
         {currentStep === "builder" && (
           <motion.div
             className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-[calc(100vh-4rem)] p-6"
@@ -849,7 +818,6 @@ export default function Resume_builder() {
             exit={{ opacity: 0 }}
             transition={{ duration: 0.5 }}
           >
-            {/* Debug Panel - Remove in production */}
             {userData && (
               <div className="fixed top-20 right-4 bg-black bg-opacity-80 text-white p-3 rounded-lg text-xs max-w-xs z-40">
                 <h4 className="font-bold mb-2">Debug - User Data:</h4>
@@ -859,7 +827,6 @@ export default function Resume_builder() {
               </div>
             )}
 
-            {/* Chat Window */}
             <div className="order-2 lg:order-1">
               <ChatWindow 
                 darkMode={darkMode} 
@@ -871,7 +838,6 @@ export default function Resume_builder() {
               />
             </div>
 
-            {/* Resume Preview */}
             <div className="order-1 lg:order-2">
               <LivePreview
                 prompt={""}
@@ -884,7 +850,6 @@ export default function Resume_builder() {
         )}
       </AnimatePresence>
 
-      {/* ATS Score Banner */}
       {showATSScore && (
         <motion.div
           className={`fixed top-20 left-1/2 transform -translate-x-1/2 z-50 ${
@@ -916,7 +881,6 @@ export default function Resume_builder() {
         </motion.div>
       )}
 
-      {/* Floating Action Buttons - Only show when in builder mode */}
       {currentStep === "builder" && (
         <div className="fixed bottom-6 right-6 flex flex-col space-y-4">
           
@@ -932,7 +896,6 @@ export default function Resume_builder() {
         </div>
       )}
 
-      {/* Job Description Modal */}
       {showJobDescModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <motion.div
@@ -988,7 +951,6 @@ export default function Resume_builder() {
         </div>
       )}
 
-      {/* Loading Spinner */}
       {isGenerating && <ResumeLoadingSpinner darkMode={darkMode} />}
     </div>
   );
