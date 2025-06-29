@@ -53,30 +53,22 @@ def identify_missing_keywords(required: List[str], resume_text: str) -> List[str
     return [skill for skill in required if skill.lower() not in resume_lower]
 
 async def calculate_composite_score(request: schemas.ScoreRequest, client: httpx.AsyncClient) -> schemas.ScoreResponse:
-    # 1. Calculate semantic score using the unified model
     semantic_score = embedding.compute_semantic_score(
         request.job_description, request.resume_text
     )
-
-    # 2. Extract keywords from Job Description via LLM
     prompt = KEYWORD_EXTRACTION_TEMPLATE.render(job_description=request.job_description)
     try:
         response_text = await llm_client.invoke_gemini(client, prompt, enforce_json=True)
         required_keywords = json.loads(response_text).get("skills", [])
     except (json.JSONDecodeError, llm_client.LLMError):
         required_keywords = []
-
-    # 3. Calculate keyword score
     if not required_keywords:
         keyword_score = 1.0
         missing_keywords = []
     else:
         missing_keywords = identify_missing_keywords(required_keywords, request.resume_text)
         keyword_score = (len(required_keywords) - len(missing_keywords)) / len(required_keywords)
-
-    # 4. Calculate final weighted score
     final_score = (semantic_score * 0.4) + (keyword_score * 0.6)
-
     return schemas.ScoreResponse(
         final_score=round(final_score, 3),
         semantic_score=round(semantic_score, 3),
@@ -92,5 +84,4 @@ async def get_suggestions(request: schemas.SuggestionRequest, client: httpx.Asyn
     except (json.JSONDecodeError, llm_client.LLMError) as e:
         logger.error(f"Failed to get suggestions: {e}")
         suggestions = ["Could not generate suggestions at this time."]
-    
     return schemas.SuggestionResponse(suggestions=suggestions)

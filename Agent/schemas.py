@@ -3,9 +3,6 @@ from typing import List, Optional, Literal, Dict
 from datetime import datetime
 import config
 
-# ===================================================================
-# Schemas for Embedding & Indexing
-# ===================================================================
 IndexNamespace = Literal['profile', 'resume_sections']
 
 class IndexSectionRequest(BaseModel):
@@ -35,9 +32,6 @@ class ChunkItem(BaseModel):
 class RetrieveResponse(BaseModel):
     results: List[ChunkItem]
 
-# ===================================================================
-# Schemas for Generation
-# ===================================================================
 class FullGenerateRequest(BaseModel):
     user_id: str = Field(..., min_length=1)
     job_description: str = Field(..., min_length=1)
@@ -55,9 +49,6 @@ class GenerateResponse(BaseModel):
     retrieval_mode: str
     section_id: Optional[str] = None
 
-# ===================================================================
-# Schemas for Scoring & Suggestions
-# ===================================================================
 class ScoreRequest(BaseModel):
     job_description: str = Field(..., min_length=1)
     resume_text: str = Field(..., min_length=1)
@@ -74,16 +65,10 @@ class SuggestionRequest(BaseModel):
 class SuggestionResponse(BaseModel):
     suggestions: List[str]
 
-# ===================================================================
-# General Utility Schemas
-# ===================================================================
 class HealthResponse(BaseModel):
     status: str
     service: str
 
-# ===================================================================
-# Schemas for LangChain Agent
-# ===================================================================
 class AgentChatRequest(BaseModel):
     user_id: str = Field(..., min_length=1)
     message: str = Field(..., min_length=1)
@@ -94,7 +79,6 @@ class AgentChatResponse(BaseModel):
     response: str
     resume_json: Optional[Dict] = None
     ats_score: Optional[ScoreResponse] = None
-    suggestions: Optional[List[str]] = None
     conversation_id: str
 
 class ConversationState(BaseModel):
